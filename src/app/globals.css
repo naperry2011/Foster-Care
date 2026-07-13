@@ -6,14 +6,18 @@
   --night: #0e1020;
   --porch: #e9a23b;
   --glow: #fbe3b4;
-  --paper: #faf7f1;
-  --paper-2: #f2ede3;
-  --ink: #23212b;
-  --muted: #6b6879;
-  --rule: #dfdad0;
+  --paper: #faf3e7;
+  --paper-2: #f3e9d7;
+  --ink: #3c2f2a;
+  --muted: #8a7a6d;
+  --rule: #e5d8c3;
   --sage: #3f6e5e;
-  --sage-tint: #eaf1ee;
-  --clay: #9e4b3c;
+  --sage-tint: #e9f0e9;
+  --clay: #c0653f;
+  --clay-tint: #f7e4da;
+  --plum: #2b2140;
+  --plum-2: #453258;
+  --butter: #fdf0d4;
 }
 
 @theme inline {
@@ -30,11 +34,67 @@
   --color-sage: var(--sage);
   --color-sage-tint: var(--sage-tint);
   --color-clay: var(--clay);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-clay-tint: var(--clay-tint);
+  --color-plum: var(--plum);
+  --color-plum-2: var(--plum-2);
+  --color-butter: var(--butter);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-hand: var(--font-hand);
 }
 
 body {
   background: var(--paper);
   color: var(--ink);
+  font-family: var(--font-body), sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), serif;
+}
+.font-hand {
+  font-family: var(--font-hand), cursive;
+}
+
+/* ---- landing page atmosphere ---- */
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.25; }
+}
+.star {
+  animation: twinkle 3.5s ease-in-out infinite;
+}
+
+@keyframes firefly {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  15%  { opacity: 0.9; }
+  50%  { transform: translate(28px, -22px); opacity: 0.35; }
+  70%  { opacity: 0.9; }
+  100% { transform: translate(-14px, -44px); opacity: 0; }
+}
+.firefly {
+  animation: firefly 9s ease-in-out infinite;
+}
+
+@keyframes porchpulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+.porch-glow {
+  animation: porchpulse 4.5s ease-in-out infinite;
+}
+
+@keyframes riseup {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}
+.rise {
+  opacity: 0;
+  animation: riseup 0.9s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star, .firefly, .porch-glow { animation: none; }
+  .rise { animation: none; opacity: 1; transform: none; }
 }
