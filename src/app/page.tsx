@@ -1,10 +1,18 @@
 import Link from "next/link";
+import Landing from "@/components/Landing";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
-  const user = await requireUser();
   const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  // signed-out visitors get the public landing page
+  if (!authUser) return <Landing />;
+
+  const user = await requireUser();
 
   const [{ count: contacts }, { count: sources }, { count: waiting }] =
     await Promise.all([

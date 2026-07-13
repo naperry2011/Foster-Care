@@ -31,6 +31,7 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isPublic =
+    path === "/" || // public landing page (dashboard renders when signed in)
     path === "/login" ||
     path.startsWith("/c/") || // public capture pages
     path.startsWith("/u/") || // unsubscribe links
