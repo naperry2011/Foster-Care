@@ -4,6 +4,11 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
+  // No Supabase configured yet (fresh deploy) — show the public landing page.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return <Landing />;
+  }
+
   const supabase = await createClient();
   const {
     data: { user: authUser },
