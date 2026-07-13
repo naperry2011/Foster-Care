@@ -8,7 +8,7 @@ import type { Stage } from "@/lib/stages";
 // All stage moves route through the set_contact_stage() RPC so the
 // append-only stage_change log can never be skipped.
 export async function moveStage(formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const supabase = await createClient();
 
   const contactId = String(formData.get("contact_id"));
@@ -31,6 +31,20 @@ export async function moveStage(formData: FormData) {
       .eq("id", contactId);
   }
 
+  // licensing is the money event — write the outcome the ledger runs on
+  if (toStage === "licensed") {
+    await supabase.from("outcome").upsert(
+      {
+        agency_id: user.agencyId,
+        contact_id: contactId,
+        licensed_on: new Date().toISOString().slice(0, 10),
+        confirmed_by_user_id: user.id,
+      },
+      { onConflict: "contact_id", ignoreDuplicates: true }
+    );
+  }
+
   revalidatePath("/board");
   revalidatePath("/contacts");
+  revalidatePath("/ledger");
 }

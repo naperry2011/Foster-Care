@@ -21,6 +21,12 @@ export default function AppNav({ agencyName }: { agencyName: string }) {
           <Link href="/tasks" className="text-white/80 hover:text-white">
             Tasks
           </Link>
+          <Link href="/ambassadors" className="text-white/80 hover:text-white">
+            Ambassadors
+          </Link>
+          <Link href="/ledger" className="text-porch hover:text-glow font-medium">
+            Ledger
+          </Link>
         </nav>
         <span className="text-sm text-white/50 hidden sm:block">{agencyName}</span>
       </div>
