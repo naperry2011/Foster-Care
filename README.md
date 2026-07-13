@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Porchlight
 
-## Getting Started
+Pre-inquiry recruitment for foster care agencies: capture people at the church
+fair before they vanish, hold "not yet" gently for years, and trace every
+licensed home back to the Saturday it started.
 
-First, run the development server:
+Full product plan: [docs/PLAN.md](docs/PLAN.md).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Stack
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Next.js (App Router) + TypeScript + Tailwind · Supabase (Postgres, RLS, Auth) · Resend (email) · Vercel.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Supabase**: create a project at supabase.com, then in the SQL editor run
+   `supabase/migrations/0001_schema.sql` followed by `0002_warmth.sql`
+   (or `supabase db push` with the CLI).
+2. **Env**: copy `.env.example` to `.env.local` and fill in the Supabase URL,
+   anon key, and service-role key. `RESEND_API_KEY`/`EMAIL_FROM` are only
+   needed for nurture emails; `CRON_SECRET`/`INBOUND_WEBHOOK_SECRET` guard the
+   system endpoints.
+3. `npm install && npm run dev`
+4. Sign in with a magic link, create your agency on `/onboarding`, create an
+   event on `/events`, and scan the QR code.
 
-## Learn More
+## The rules the code enforces
 
-To learn more about Next.js, take a look at the following resources:
+- A contact's `source_id` is NOT NULL and immutable — no orphan contacts, ever.
+- `stage_change` and `touch` are append-only; stages move only through
+  `set_contact_stage()`.
+- Consent is checked at the send layer (`src/lib/send.ts`), the only path to
+  the email provider; sends are idempotent via `send_log`'s unique dedupe key.
+- Opt-out is irreversible (DB trigger).
+- Every table is agency-scoped with RLS.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## System endpoints
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `GET /api/cron/tick` (daily, Vercel cron, Bearer `CRON_SECRET`): wake-ups,
+  stage-keyed nurture, quarterly "not yet" cadence, cold flags.
+- `POST /api/webhooks/inbound` (`x-webhook-secret`): inbound email reply →
+  pause automation + create a task.
+- `/c/[slug]` public capture page · `/u/[id]` one-click unsubscribe.
