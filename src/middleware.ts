@@ -33,6 +33,8 @@ export async function middleware(request: NextRequest) {
   const isPublic =
     path === "/login" ||
     path.startsWith("/c/") || // public capture pages
+    path.startsWith("/u/") || // unsubscribe links
+    path.startsWith("/api/") || // routes guard themselves with secrets
     path.startsWith("/auth"); // auth callbacks
 
   if (!user && !isPublic) {

@@ -18,6 +18,9 @@ export default function AppNav({ agencyName }: { agencyName: string }) {
           <Link href="/contacts" className="text-white/80 hover:text-white">
             Contacts
           </Link>
+          <Link href="/tasks" className="text-white/80 hover:text-white">
+            Tasks
+          </Link>
         </nav>
         <span className="text-sm text-white/50 hidden sm:block">{agencyName}</span>
       </div>
