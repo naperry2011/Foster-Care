@@ -92,6 +92,123 @@ First touch is the source of record (later touches visible in the timeline). Lic
 
 ---
 
+## ADR-008: Onboarding progress is a parallel record, not a stage
+
+**Date:** 2026-07-26
+**Status:** Accepted
+
+**Context**
+Agencies asked where a family had got to in licensing. The obvious move — add
+an `onboarding` value to `contact_stage` — is wrong in three ways at once.
+
+**Decision**
+A family in onboarding stays at stage `inquiry` and gains a `journey` row with
+one `journey_step` per requirement. No new `contact_stage` value. The catalog
+(`journey_requirement`) has global Arizona defaults with per-agency overrides;
+`journey_step` **snapshots** the label and step number at creation rather than
+joining to the catalog.
+
+**Consequences**
+- **Positive:** existing `stage_change` history keeps its meaning;
+  `BOARD_STAGES`, `WARM_STAGES` and the cron's stage filters need no changes.
+  Editing the catalog next year cannot rewrite what was asked of a family last
+  year. Guidance text is still read live, so improving an explanation helps
+  families already in progress.
+- **Negative:** two places now describe "where someone is", and a reader has to
+  know that stage answers *how warm* and journey answers *how far*.
+
+**The cascade is load-bearing.** `journey.contact_id` and
+`journey_step.journey_id` are both `ON DELETE CASCADE`. Without it
+`delete_contact()` aborts, `purgeAgency` fails behind it, and every suite goes
+red — and "please delete my information" becomes unanswerable for exactly the
+families furthest along. There is a smoke test that erases a contact
+mid-checklist.
+
+**Where the fence is.** Porchlight records *whether* a requirement is cleared.
+No documents, no signatures, no assessments, nothing about a child. It is
+called "onboarding progress", never "licensing". Completing every step sets
+`journey.completed_on` and then *asks* whether to mark the family licensed —
+Arizona licenses families, and the ledger is only worth anything because a
+human confirms it.
+
+**No hour counts in the catalog.** DCS's foster-care FAQ says 15 in-class hours
+while its training page describes a schedule implying about double that, and
+the two have never been reconciled. Printing either would make Porchlight the
+source of a number Arizona itself is inconsistent about, in front of a family
+deciding whether they can afford the time. The reasoning is repeated in a SQL
+comment where someone would be tempted to "improve" it.
+
+---
+
+## ADR-009: Public statistics and agency goals live in different tables
+
+**Date:** 2026-07-26
+**Status:** Accepted (see also ADR-011)
+
+**Context**
+`/arizona` shows two kinds of number to the same recruitment director: what the
+state published, and what the agency is aiming for. If those are ever confused
+— in a board pack, in a grant application — the product has done real damage.
+
+**Decision**
+`az_stat` (published, sourced) and `agency_target` (typed by the agency) are
+physically separate tables, never one table with an `is_official` flag.
+**`az_stat` has a select policy and no write policy at all**, so the only thing
+that can put a number there is `scripts/az-stats-import.mjs` holding the
+service-role key. Agency targets render in the handwritten treatment.
+
+**Consequences**
+- **Positive:** a boolean can be got wrong by one bad insert; a missing write
+  policy cannot. A compromised browser session cannot rewrite what Arizona
+  said. Verified by smoke-test insert/update/delete assertions.
+- **Negative:** correcting a figure means running a script, not editing a row.
+
+**Grain is part of the truth.** `az_metric.published_levels` records which
+grains Arizona actually publishes, and `unpublished_note` says in plain English
+why a number is missing. Arizona publishes entries into care by county, but
+children *in* care and licensed homes only statewide, and nothing at all by
+region. The page states the gap rather than rendering a blank, because a blank
+reads as a bug when it is a fact about Arizona.
+
+**Ingest is a human twice a year, not a cron.** `dcs.az.gov` returns 403 to
+every server-side fetcher; the workbooks must be downloaded in a real browser.
+There is no API, no CSV endpoint and no open-data portal. See
+`docs/az-data-sources.md`, which also records the two claims the pre-inventory
+plan got wrong.
+
+---
+
+## ADR-012: Joining an agency is an RPC, not a service-role write
+
+**Date:** 2026-07-26
+**Status:** Accepted (supplements ADR-002)
+
+**Context**
+Onboarding built a service-role client inside a request handler to write
+`agency` and `app_user`, because creating an agency crosses the RLS boundary —
+there is no agency to be scoped to yet. It worked while there was one user per
+agency and nobody to invite. It was also the only place in the product where
+app code held a key that can read every tenant.
+
+**Decision**
+`create_agency()` and `accept_invite()` are security-definer RPCs with narrow
+guards (caller signed in, caller not already a member).
+`SUPABASE_SERVICE_ROLE_KEY` no longer appears anywhere under `src/app`.
+
+**Consequences**
+- **Positive:** the blast radius of a bug in a request handler is now one
+  agency instead of all of them.
+- **Negative:** two more functions that must be revoked from `anon` by name.
+
+**The token is not the credential.** `accept_invite()` requires the signed-in
+address to match the invited one, so a link forwarded to the wrong person or
+pasted into a group chat cannot be used to walk into somebody else's tenant.
+The invitee has no agency yet, so RLS hides `agency_invite` from them entirely
+— hence `invite_preview()`, which returns the agency's name and nothing about
+its data.
+
+---
+
 ## ADR-010: The demo agency is its own tenant, not a flag on records
 
 **Date:** 2026-07-26

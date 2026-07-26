@@ -8,27 +8,28 @@ Porchlight is the pre-inquiry recruitment layer for foster care agencies: captur
 
 ## Current Focus
 
-**Theme:** Milestone 5 — client-ready. Make it presentable enough that an
-Arizona recruitment director sees a product, not a prototype.
+**Theme:** Land the first paying design partner. The product is client-ready;
+what it has never done is send a real email or carry a real agency's families.
 **Goals:**
-1. Finish M5 (slices E–H) and merge to `main`
+1. First genuine nurture email sent end to end (needs Resend + a domain)
 2. Land one Arizona design-partner agency for a single-event pilot
 
 ## Now
 
-- **Slice E — Arizona data dashboard.** Blocked on a human download: `dcs.az.gov`
-  403s server-side fetchers, so the two DCS workbooks must be fetched in a real
-  browser before county data can be modelled. Headline figures can ship first.
-- Slice F — family onboarding progress tracker
-- Slice G — teammates + getting-started checklist
-- Slice H — extend suites, write ADR-008/009, merge the branch
+- **Resend account + verified domain.** The send layer has been exercised only
+  against a missing API key, where it correctly skips. Nothing has reached an
+  inbox.
+- **Design-partner onboarding** — seed sources, backfill licensed homes, set
+  their counties on `/arizona`.
+- Playwright e2e + throttled-3G check on the capture page
+- Suites into CI (needs a throwaway Supabase project)
 
 ## Next
 
-- Resend account + verified domain → first real nurture email ever sent
-- Playwright e2e and the throttled-3G capture-page check
-- Suites into CI (needs a throwaway Supabase project)
-- Design-partner onboarding: seed sources, backfill outcomes
+- Email the invitation from `/settings/team` instead of copying a link
+- A "who's in onboarding" list — the tracker is only reachable per contact
+- `/ledger` aggregation into a SQL view once an agency passes ~1,000 contacts
+- Refresh the Arizona figures when DCS publishes (twice a year; see tasks.md)
 
 ## Later (v1.1 → v2, per spec)
 
@@ -39,7 +40,7 @@ Arizona recruitment director sees a product, not a prototype.
 
 ## Recently Completed
 
-- M5 slices A–D: app shell + sign-out, contact timeline, design system, demo agency — 2026-07-26
+- M5 complete (A–H): app shell, contact timeline, design system, demo agency, Arizona dashboard, onboarding progress, teammates, suites — 2026-07-26
 - M4-A/B: live Supabase, five verification suites, four defects and one security hole found and fixed — 2026-07-26
 - MVP milestones 0–3 + landing page — 2026-07-26
 
