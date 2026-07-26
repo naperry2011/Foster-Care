@@ -8,6 +8,8 @@ Porchlight is a multi-tenant **Next.js 16.2** (App Router) monolith on Vercel ba
 
 **Style:** Monolith (server components + server actions + 3 API routes)
 **Hosting:** Vercel + Supabase managed Postgres
+**Production:** https://porchlightfostercare.org — the **apex serves Production**
+and `www` 308s to it. Deployment runbook: `docs/deploy-setup.md`.
 
 ### Next 16 specifics that constrain the code
 - The request-proxy file is `src/proxy.ts` exporting `proxy()` — `middleware.ts` is the deprecated name.
@@ -76,4 +78,5 @@ Porchlight is a multi-tenant **Next.js 16.2** (App Router) monolith on Vercel ba
 
 - Cron is daily and loops contacts in TS — fine for pilot scale, revisit at ~10k contacts.
 - Inbound reply matching is by from-address `ilike` — breaks on aliases/forwarders.
-- `NEXT_PUBLIC_APP_URL` must be set per environment or QR codes point at localhost.
+- `NEXT_PUBLIC_APP_URL` must be set per environment or QR codes point at localhost. It is **inlined at build time**, so changing it in the Vercel dashboard does nothing until a rebuild — and it must name whichever domain Vercel actually serves, or every scan pays a redirect on the one page with a sub-second budget.
+- Supabase's auth redirect allow-list must include the production domain with a `/**` wildcard, or invitation links (which carry `?next=`) break. A rejected redirect is swapped for the Site URL **silently**, so a broken config looks like a working one.

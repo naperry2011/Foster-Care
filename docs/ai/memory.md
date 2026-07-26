@@ -6,8 +6,8 @@ Running history of what's been built and current state. Update after major chang
 
 **Status:** Active Development — Milestone 5 (Client-ready) complete, A–H
 **Last Updated:** 2026-07-26
-**Version:** branch `m5-client-ready`
-**Deployed:** Vercel (landing + app). Supabase project `ygryunmvgyuqjxkumbmu`, migrations 0001–0010 applied.
+**Version:** `main` (branch `m5-client-ready` merged and deleted)
+**Deployed:** **https://porchlightfostercare.org** (Vercel). Apex serves Production, `www` 308s to it. Supabase project `ygryunmvgyuqjxkumbmu`, migrations 0001–0010 applied.
 
 ### What's Working
 - **The whole MVP, live**: capture → waiting room → nurture → ambassadors → attribution ledger, verified against the real database.
@@ -22,17 +22,47 @@ Running history of what's been built and current state. Update after major chang
 - **Five suites green**: smoke 59/59, cron 10/10, anon-audit 35 safe / 0 exposed, demo-test 5/5, plus `purge-test-agencies`.
 
 ### Known Issues
-- No Resend key, so nurture emails are skipped by design — no real send has ever been verified end to end.
+- No Resend key, so nurture emails are skipped by design — no real send has ever been verified end to end. Note this cannot be demonstrated on the demo agency either: `send.ts` refuses it and fails closed (ADR-010).
+- Two things on production remain unproven because they need a human: actual email **delivery**, and a phone scanning a printed QR over mobile data. Everything else about the deploy is verified — see `docs/deploy-setup.md`.
 - Playwright e2e and the throttled-3G capture-page check still unwritten; suites aren't in CI (needs a separate test project).
 - `/ledger` still aggregates in TypeScript over every contact; fine at 269, revisit past ~1,000.
 - **Browser-pane quirk, not a bug:** the preview pane runs with `visibilityState: "hidden"`, so `requestAnimationFrame` never fires and React's Suspense reveal never completes — pages look stuck on "Loading…" and screenshots time out. Flush manually with `window.$RV(window.$RB)` in the console. Real browsers are unaffected.
 - JSX in this setup strips the space after an expression at a line break (`{n} people` → "5people"). Bitten twice; use an explicit `{" "}`.
 
 ### In Progress
-- Milestone 5 is complete and merged. Next: a Resend account so a nurture email
-  has actually been sent once, then design-partner onboarding.
+- Milestone 5 complete and merged; production live on its own domain. Next: a
+  Resend account so a nurture email has actually been sent once, then
+  design-partner onboarding.
 
 ## Implementation History
+
+### 2026-07-26 - Production on porchlightfostercare.org
+**What was built:** no application code — the deployment that makes it real.
+Domain bought on Namecheap, DNS pointed at Vercel, Supabase env wired into
+Production, auth redirect allow-list updated, fresh `CRON_SECRET` and
+`INBOUND_WEBHOOK_SECRET` replacing the dev placeholders.
+
+**Verified live, not assumed:** TLS valid and Namecheap parking records gone;
+`NEXT_PUBLIC_APP_URL` compiled into the build (zero `localhost:3000` in served
+HTML); `/u/[id]` returning different pages for a real vs bogus contact id, which
+is what proves the deployed server reaches Supabase; `/arizona` redirecting to
+`/login?next=%2Farizona`; `/api/cron/tick` returning 401 both unauthenticated
+**and** with the old dev secret, which is how we know the secret was rotated.
+
+**Two things learned by probing it:**
+- Vercel initially had `www` as primary, so the apex 308'd to it — and the apex
+  is what `NEXT_PUBLIC_APP_URL` bakes into every QR code. That redirect cost
+  0.56s against 0.29s on the one page with a sub-second budget. Swapped so the
+  apex serves Production. Whichever domain Vercel serves must be the one in
+  `NEXT_PUBLIC_APP_URL`.
+- `/c/[slug]` is useless as a connectivity check: it does no DB read on load
+  (the slug is validated inside `public_capture()` on submit), so a nonsense
+  slug returns 200 exactly like a real one.
+
+**Why:** the demo could not be shown to an agency from a `vercel.app` URL, and
+every QR code generated before this pointed at `localhost:3000`.
+**Files affected:** `docs/deploy-setup.md` (new runbook), `.env.vercel.local`
+(gitignored). No `src/` changes.
 
 ### 2026-07-26 - Milestone 5 slices E–H (Arizona, onboarding, team)
 **What was built:**
@@ -104,5 +134,8 @@ Next.js 15 App Router monolith on Vercel; Supabase (Postgres + RLS + Auth) as th
 - A Postgres policy with no `to` clause applies to **every** role including `anon`. The dangerous shape is a global-default row: `using (agency_id is null or agency_id = current_agency_id())` is true for a caller with no agency. Plain `agency_id = current_agency_id()` is safe, because NULL is not TRUE.
 - Verifying a cleanup by logging "done" instead of checking `error` hides failures. An `app_user` delete silently failed on an FK from `agency_invite.invited_by_user_id`, and the log said it had worked.
 - The JSX space-stripping trap (`{expr}` then a line break) has now bitten three times. Always `{" "}`.
+- `NEXT_PUBLIC_*` is inlined at **build** time. Setting it in the Vercel dashboard changes nothing until a rebuild with the cache off — the old value stays compiled into the bundle, so QR codes keep pointing wherever they used to.
+- Supabase rejects a non-allowlisted auth redirect **silently**, substituting the Site URL rather than erroring, so a broken config looks identical to a working one. `admin.generateLink()` returns the link without mailing it, which makes the allow-list checkable without an inbox.
+- A page returning 200 does not mean it reached the database. Pick a probe that actually reads (`/u/[id]`), and prove it by comparing a real id against a bogus one.
 - `supabase-js` `.select("*", { head: true })` returns 204 with no error for a table that does not exist — useless as an existence check. Use `.select("*").limit(1)` and read `error`.
 - SheetJS's ESM build has no `fs` bound: `XLSX.readFile()` throws "Cannot access file". Read the bytes and use `XLSX.read(buffer)`.

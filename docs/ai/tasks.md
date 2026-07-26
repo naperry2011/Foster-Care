@@ -13,18 +13,28 @@ H (suites + docs)
 Migrations 0001–0010 applied. Five suites green: smoke 59/59, cron 10/10,
 anon-audit 35 safe / 0 exposed, demo-test 5/5, plus `purge-test-agencies`.
 
+**Live at https://porchlightfostercare.org** — see `docs/deploy-setup.md` for
+the runbook and what was verified.
+
 ---
 
 ## Next
 
-1. **Resend account + verified domain.** No nurture email has ever actually
-   been sent. This is the largest untested surface in the product and the only
-   one that touches a stranger's inbox.
-2. **Design-partner onboarding.** Seed their sources, backfill known licensed
+1. **Finish proving production** — the only two things a terminal can't check:
+   - [ ] Sign in at `porchlightfostercare.org/login` and confirm the emailed
+         link resolves (delivery, not just link generation — the allow-list is
+         already verified)
+   - [ ] Scan a printed QR from a phone on mobile data; contact lands on `/board`
+2. **Resend account.** No nurture email has ever actually been sent. This is the
+   largest untested surface in the product and the only one that touches a
+   stranger's inbox. The domain (`porchlightfostercare.org`) is already in hand
+   to verify against. It cannot be rehearsed on the demo agency — `send.ts`
+   refuses demo tenants and fails closed (ADR-010).
+3. **Design-partner onboarding.** Seed their sources, backfill known licensed
    homes, set their counties on `/arizona`.
-3. **Playwright e2e** (event → QR capture → board → stage change) and the
+4. **Playwright e2e** (event → QR capture → board → stage change) and the
    throttled-3G check on `/c/[slug]`.
-4. **Suites into CI** — needs a throwaway Supabase project so a run can create
+5. **Suites into CI** — needs a throwaway Supabase project so a run can create
    and destroy tenants without touching the pilot database.
 
 ## Arizona data upkeep

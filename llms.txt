@@ -5,13 +5,15 @@
 ## Project Overview
 
 **Tech Stack:** Next.js **16.2** (App Router, TS, Tailwind v4) · Supabase (Postgres/RLS/Auth) · Resend · Vercel
-**Status:** Live on Supabase + Vercel. Milestone 5 (client-ready) in progress on branch `m5-client-ready`: slices A–D done, E–H remaining.
+**Status:** Live at **https://porchlightfostercare.org**. Milestones 0–5 complete and merged to `main`; migrations 0001–0010 applied. Five verification suites green.
 **Purpose:** Private licensing agencies (the buyer) are judged on licensed homes; Porchlight instruments the four funnel stages before the inquiry that no other tool sees.
 
 ## Core Documentation
 
 - `README.md` — Setup and the rules the code enforces
-- `docs/PLAN.md` — Approved milestone plan (M0–M4)
+- `docs/PLAN.md` — Milestone plan (M0–M5)
+- `docs/deploy-setup.md` — Production runbook: Vercel env, DNS, Supabase auth URLs
+- `docs/az-data-sources.md` — DCS workbook inventory; read before touching the Arizona parser
 - `docs/ai/memory.md` — Project history and current state
 - `docs/ai/roadmap.md` — Forward-looking priorities
 - `docs/ai/tasks.md` — Active work
@@ -23,32 +25,48 @@
 ### Data & invariants
 - `supabase/migrations/0001_schema.sql` — spine tables, immutability/append-only triggers, RLS, `public_capture()` / `set_contact_stage()` RPCs
 - `supabase/migrations/0002_warmth.sql` — nurture templates (+ global default content), send_log, task queue
+- `supabase/migrations/0003_erasure.sql` + `0004` — `delete_contact()` and the anon authz fix
+- `supabase/migrations/0007_arizona.sql` — `az_*` public statistics (no write policy) + `agency_target` / `agency_county`
+- `supabase/migrations/0008_journey.sql` — onboarding checklist; both journey FKs are `ON DELETE CASCADE` or erasure breaks
+- `supabase/migrations/0009_team.sql` — invitations, `create_agency()` / `accept_invite()`
 
 ### App
 - `src/app/page.tsx` — landing (signed out) vs dashboard (signed in); outside the route group
 - `src/app/(app)/` — every authed page, under one layout that gates auth and renders `AppShell`
-- `src/app/(app)/contacts/[id]/page.tsx` — contact detail + interaction timeline (the demo centrepiece)
-- `src/app/c/[slug]/page.tsx` — public ten-second capture page
+- `src/app/(app)/contacts/[id]/page.tsx` — contact detail, timeline, onboarding checklist (the demo centrepiece)
+- `src/app/(app)/arizona/page.tsx` — state figures, county data, agency goals
+- `src/app/c/[slug]/page.tsx` — public ten-second capture page (no DB read on load, by design)
+- `src/app/join/[token]/page.tsx` — accept a team invitation
 - `src/components/Landing.tsx` — storybook marketing page (house SVG scene)
 - `src/components/ui/` — shared primitives; `Cited` requires a source, so no public figure renders unattributed
+- `src/lib/arizona.ts` — reads `az_*`, attaches a citation to every figure
 - `src/lib/demo/seed.ts` — fixed-seed demo generator (see ADR-010)
 
 ### Automation
-- `src/lib/send.ts` — THE send gate (consent, idempotency, pause) — never bypass
+- `src/lib/send.ts` — THE send gate (consent, idempotency, pause, demo refusal) — never bypass
 - `src/app/api/cron/tick/route.ts` — daily heartbeat (wake-ups, nurture, cadence, cold flags)
 - `src/app/api/webhooks/inbound/route.ts` — reply → pause + task
-- `src/lib/admin.ts` — service-role client (server-only)
+- `src/lib/admin.ts` — service-role client (server-only; not used anywhere under `src/app`)
+- `scripts/az-stats-import.mjs` — the only writer of `az_stat`; run by hand twice a year
 
 ## Common Tasks
 
 **Run locally:** `npm run dev` (preview config in `.claude/launch.json`); needs real values in `.env.local`.
+**Verify a change:** `node scripts/smoke-test.mjs .env.local`, then `anon-audit.mjs` — mandatory after any migration adding a function or policy.
 **Change a stage:** always via `set_contact_stage()` RPC — direct `contact.stage` updates are blocked by trigger.
 **Add nurture content:** insert `nurture_template` rows (NULL agency_id = global default; agency rows override by step_no).
+**Refresh Arizona figures:** download the two DCS workbooks into `az_docs/` by hand, then `node scripts/az-stats-import.mjs --apply`.
+
+## Gotchas
+
+- Every new function in the public schema is granted to `anon` by default — revoke by name. A policy with no `to` clause applies to `anon` too.
+- `NEXT_PUBLIC_*` is inlined at build time; dashboard changes need a rebuild.
+- Copy a pattern from the migration that last **fixed** it, not the one that created it.
 
 ## Environment Variables
 
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — client + middleware (app degrades to landing-only without them)
-- `SUPABASE_SERVICE_ROLE_KEY` — cron/webhooks/onboarding (server only)
-- `RESEND_API_KEY`, `EMAIL_FROM` — nurture email
-- `CRON_SECRET`, `INBOUND_WEBHOOK_SECRET` — system endpoint auth
-- `NEXT_PUBLIC_APP_URL` — base for QR codes and unsubscribe links
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — client + proxy (app degrades to landing-only without them)
+- `SUPABASE_SERVICE_ROLE_KEY` — cron, webhooks, scripts (server only; no longer used by onboarding — ADR-012)
+- `RESEND_API_KEY`, `EMAIL_FROM` — nurture email; `send.ts` skips cleanly when unset
+- `CRON_SECRET`, `INBOUND_WEBHOOK_SECRET` — system endpoint auth; dev placeholders must not reach production
+- `NEXT_PUBLIC_APP_URL` — base for QR codes and unsubscribe links; must name the domain Vercel actually serves
