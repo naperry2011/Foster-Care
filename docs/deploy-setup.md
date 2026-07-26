@@ -133,7 +133,31 @@ no database lookup on load — it renders a static form and validates the slug
 inside `public_capture()` on submit, which is how it stays fast. A nonsense slug
 returns 200 exactly like a real one.
 
-Still unverified, because it needs a human inbox: magic-link sign-in.
+**Verifying the auth redirects without sending an email.** `generateLink` builds
+a magic link and returns it instead of mailing it, so the allow-list can be
+checked directly:
+
+```bash
+node -e "import('./scripts/lib.mjs').then(async ({loadEnv,makeClients})=>{
+  const {admin}=makeClients(loadEnv('.env.local'));
+  const {data}=await admin.auth.admin.generateLink({
+    type:'magiclink', email:'demo@porchlight.demo',
+    options:{redirectTo:'https://porchlightfostercare.org/auth/callback?next=/join/abc'}});
+  console.log(new URL(data.properties.action_link).searchParams.get('redirect_to'));
+})"
+```
+
+If the printed value matches what you asked for, the entry is allowed. If it
+comes back as the bare Site URL instead, it was rejected and silently swapped.
+
+Confirmed on 2026-07-26: the production callback, an invite deep link carrying
+`?next=`, and `http://localhost:3000/auth/callback` are all honoured verbatim,
+while `https://evil.example.com/steal` is rejected and falls back to the Site
+URL. That last case is the one that matters — nobody can get Supabase to mint a
+link that delivers your users to their site.
+
+Still genuinely unverified, because it needs a human inbox and a phone: actual
+email delivery, and a QR scan over mobile data landing a contact on the board.
 
 In this order, because each depends on the last:
 
