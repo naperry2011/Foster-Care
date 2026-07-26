@@ -185,12 +185,37 @@ export default async function LedgerPage() {
         </div>
 
         {everNotYet.size > 0 && (
-          <div className="mt-6 rounded-2xl border-l-4 border-sage bg-sage-tint p-5 text-sm">
-            <strong>Waiting-room yield:</strong> {notYetLicensed} of{" "}
-            {everNotYet.size}{" "}
-            people who once said &ldquo;not yet&rdquo; went on to become
-            licensed homes. Without a waiting room, all {everNotYet.size} would
-            have been lost.
+          <div className="mt-6 rounded-2xl border-l-4 border-sage bg-sage-tint p-6">
+            <p className="font-display text-xl font-semibold text-[#2F5347]">
+              {notYetLicensed > 0 ? (
+                <>
+                  {notYetLicensed} of your {totals.licensed} licensed{" "}
+                  {totals.licensed === 1 ? "home" : "homes"}{" "}
+                  came from people who had already said &ldquo;not yet.&rdquo;
+                </>
+              ) : (
+                <>
+                  {everNotYet.size}{" "}
+                  {everNotYet.size === 1 ? "person is" : "people are"}{" "}
+                  being held warm right now.
+                </>
+              )}
+            </p>
+            <p className="text-sm text-[#2F5347]/80 mt-2">
+              {notYetLicensed > 0 ? (
+                <>
+                  Without a waiting room, every one of them would have been
+                  lost. {everNotYet.size} people have been held so far, and{" "}
+                  {Math.round((notYetLicensed / everNotYet.size) * 100)}% of
+                  them have become homes.
+                </>
+              ) : (
+                <>
+                  Nobody has come back around yet — that takes a year or two.
+                  This is the number no other tool in this market can produce.
+                </>
+              )}
+            </p>
           </div>
         )}
       </main>
