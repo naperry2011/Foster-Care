@@ -90,10 +90,13 @@ export async function GET(request: Request) {
         t as Template,
         `nurture:${c.stage}:${t.step_no}`
       );
+      // one email per contact per tick — warmth, not a flood. A failure also
+      // stops the loop so one bad send can't cascade through every step.
       if (result === "sent") {
         stats.nurtureSent++;
-        break; // one email per contact per tick — warmth, not a flood
+        break;
       }
+      if (result === "failed") break;
     }
   }
 

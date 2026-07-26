@@ -92,6 +92,27 @@ First touch is the source of record (later touches visible in the timeline). Lic
 
 ---
 
+## ADR-007: Append-only history, with one audited door out
+
+**Date:** 2026-07-26
+**Status:** Accepted (supplements ADR-002)
+
+**Context**
+ADR-002's append-only triggers made contacts undeletable in practice: deleting a contact cascades into `touch` and `stage_change`, whose triggers reject every DELETE. A product holding prospective foster parents' PII cannot answer "please delete my information," and a mistyped contact was permanent. Discovered on the first live run, not by reading the code.
+
+**Decision**
+Keep append-only as the default, but allow DELETE when a one-shot GUC (`porchlight.erasing_contact`) is set — settable only inside `delete_contact()`, a security-definer RPC that verifies agency ownership and erases the whole person. Same pattern as `set_contact_stage()`. The `source` and its cost survive, so the ledger's denominators stay honest.
+
+**Consequences**
+- **Positive:** erasure requests are answerable; history still cannot be selectively rewritten (there is no path to editing one row).
+- **Negative:** an erased contact silently reduces historical capture counts for their source; the ledger shows what remains, not what ever was.
+
+**Alternatives considered**
+- Soft-delete / anonymize in place — keeps counts intact, but "we still hold your row" is a weak answer to an erasure request.
+- Dropping the DELETE triggers entirely — would allow quiet history deletion, which the attribution claim depends on.
+
+---
+
 ## ADR-006: Milestone-based plan; dashboards behind auth, storybook landing at `/`
 
 **Date:** 2026-07-26

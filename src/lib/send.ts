@@ -38,16 +38,25 @@ export async function sendNurtureEmail(
     return "skipped";
   }
 
+  // No provider configured: do nothing at all. Claiming a dedupe key here
+  // would permanently mark an email as handled that was never sent.
+  if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) {
+    return "skipped";
+  }
+
+  // Claim the key BEFORE sending so a double-fired cron sends once. The claim
+  // is released again if the send fails, so a transient provider outage
+  // retries on the next tick instead of silently dropping the email.
   const { error: claimErr } = await admin.from("send_log").insert({
     agency_id: contact.agency_id,
     contact_id: contact.id,
     template_id: template.id,
     channel: "email",
     dedupe_key: dedupeKey,
-    status: "sent",
+    status: "sending",
   });
   if (claimErr) {
-    // 23505 unique violation = already sent; anything else = fail closed
+    // 23505 unique violation = already sent or in flight; anything else = fail closed
     return "skipped";
   }
 
@@ -72,11 +81,17 @@ export async function sendNurtureEmail(
   } catch {
     await admin
       .from("send_log")
-      .update({ status: "failed" })
+      .delete()
       .eq("contact_id", contact.id)
       .eq("dedupe_key", dedupeKey);
     return "failed";
   }
+
+  await admin
+    .from("send_log")
+    .update({ status: "sent" })
+    .eq("contact_id", contact.id)
+    .eq("dedupe_key", dedupeKey);
 
   await admin.from("touch").insert({
     agency_id: contact.agency_id,

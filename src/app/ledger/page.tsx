@@ -180,9 +180,10 @@ export default async function LedgerPage() {
         {everNotYet.size > 0 && (
           <div className="mt-6 rounded-lg border-l-4 border-sage bg-sage-tint p-5 text-sm">
             <strong>Waiting-room yield:</strong> {notYetLicensed} of{" "}
-            {everNotYet.size} people who once said &ldquo;not yet&rdquo; went on
-            to become licensed homes. Without a waiting room, all{" "}
-            {everNotYet.size} would have been lost.
+            {everNotYet.size}{" "}
+            people who once said &ldquo;not yet&rdquo; went on to become
+            licensed homes. Without a waiting room, all {everNotYet.size} would
+            have been lost.
           </div>
         )}
       </main>

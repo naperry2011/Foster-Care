@@ -15,21 +15,16 @@ export async function moveStage(formData: FormData) {
   const toStage = String(formData.get("to_stage")) as Stage;
   const reason = String(formData.get("reason") ?? "").trim() || null;
 
+  // the wake-up date rides along with the stage change; the database defaults
+  // one if it's missing, so no contact is ever held without a clock
+  const wakeUp = String(formData.get("wake_up_on") ?? "");
   const { error } = await supabase.rpc("set_contact_stage", {
     p_contact_id: contactId,
     p_to_stage: toStage,
     p_reason: reason,
+    p_wake_up_on: toStage === "not_yet" && wakeUp ? wakeUp : null,
   });
   if (error) throw error;
-
-  // moving into the waiting room may carry a wake-up date
-  const wakeUp = String(formData.get("wake_up_on") ?? "");
-  if (toStage === "not_yet" && wakeUp) {
-    await supabase
-      .from("contact")
-      .update({ wake_up_on: wakeUp })
-      .eq("id", contactId);
-  }
 
   // licensing is the money event — write the outcome the ledger runs on
   if (toStage === "licensed") {
