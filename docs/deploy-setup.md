@@ -43,15 +43,20 @@ Vercel → project → **Settings → Domains** → add `porchlightfostercare.or
 
 Add `www.porchlightfostercare.org` too, so people who type "www" still arrive.
 
-**Whichever one you set as Vercel's primary domain must be the one in
-`NEXT_PUBLIC_APP_URL`.** The other redirects to it, and that redirect lands on
-the capture page — the single page with a sub-second budget on a bad connection.
-Measured on the live site: apex → www costs an extra round trip, 0.56s against
-0.26s direct. Harmless on wifi, a real cost on 3G in a church hall, on exactly
-the path a scanned QR code takes.
+**Current arrangement (verified live):** the **apex serves Production** and
+**`www` 308-redirects to the apex**. `NEXT_PUBLIC_APP_URL` is the apex, so a
+scanned QR code reaches the capture page with no redirect at all.
 
-Vercel → Settings → Domains shows which is primary. Point `NEXT_PUBLIC_APP_URL`
-at that one (and redeploy if you change it — the value is compiled in).
+Keep it that way. Whichever domain Vercel serves must be the one in
+`NEXT_PUBLIC_APP_URL`, because a QR code encodes that value literally and any
+mismatch puts a redirect on the one page with a sub-second budget on a bad
+connection. It was briefly the wrong way round here (apex → www) and cost 0.56s
+against 0.29s — harmless on wifi, a real cost on 3G in a church hall.
+
+To swap them in Vercel → Settings → Domains: set the domain you want served to
+**Connect to an environment → Production** *first*, then set the other to
+**Redirect to Another Domain → 308**. Doing it in that order avoids a moment
+where each points at the other and the site loops.
 
 **Do not copy DNS values out of a blog post.** Vercel's own docs say the
 commonly quoted `76.76.21.21` and `cname.vercel-dns.com` are *general* values
