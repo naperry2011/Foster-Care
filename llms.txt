@@ -4,8 +4,8 @@
 
 ## Project Overview
 
-**Tech Stack:** Next.js 15 (App Router, TS, Tailwind v4) · Supabase (Postgres/RLS/Auth) · Resend · Vercel
-**Status:** MVP complete; awaiting live Supabase credentials for end-to-end testing and pilot
+**Tech Stack:** Next.js **16.2** (App Router, TS, Tailwind v4) · Supabase (Postgres/RLS/Auth) · Resend · Vercel
+**Status:** Live on Supabase + Vercel. Milestone 5 (client-ready) in progress on branch `m5-client-ready`: slices A–D done, E–H remaining.
 **Purpose:** Private licensing agencies (the buyer) are judged on licensed homes; Porchlight instruments the four funnel stages before the inquiry that no other tool sees.
 
 ## Core Documentation
@@ -25,10 +25,13 @@
 - `supabase/migrations/0002_warmth.sql` — nurture templates (+ global default content), send_log, task queue
 
 ### App
-- `src/app/page.tsx` — landing (signed out) vs dashboard (signed in)
+- `src/app/page.tsx` — landing (signed out) vs dashboard (signed in); outside the route group
+- `src/app/(app)/` — every authed page, under one layout that gates auth and renders `AppShell`
+- `src/app/(app)/contacts/[id]/page.tsx` — contact detail + interaction timeline (the demo centrepiece)
 - `src/app/c/[slug]/page.tsx` — public ten-second capture page
-- `src/app/events/`, `src/app/board/`, `src/app/contacts/`, `src/app/tasks/`, `src/app/ambassadors/`, `src/app/ledger/` — authed product
 - `src/components/Landing.tsx` — storybook marketing page (house SVG scene)
+- `src/components/ui/` — shared primitives; `Cited` requires a source, so no public figure renders unattributed
+- `src/lib/demo/seed.ts` — fixed-seed demo generator (see ADR-010)
 
 ### Automation
 - `src/lib/send.ts` — THE send gate (consent, idempotency, pause) — never bypass

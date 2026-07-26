@@ -2,67 +2,131 @@
 
 Active work. Update as items are completed and new work is identified.
 
-## Sprint / Iteration
+## Current milestone
 
-**Range:** Milestone 4 — Pilot readiness (planned 2026-07-26)
-**Goal:** App runs live end-to-end, deployed, pilot agency onboardable.
+**Milestone 5 — Client-ready.** Branch `m5-client-ready`.
+Make the platform presentable to real Arizona agencies: the Arizona data
+dashboard, a family onboarding tracker, a seeded demo agency, and the polish
+that makes the existing work *look* as finished as it is.
 
-## In Progress
+**Done:** A (app shell + bug sweep) · B (contact detail + timeline) ·
+C (design system) · D (demo agency)
+**Remaining:** E (Arizona data) · F (family onboarding) · G (teammates) ·
+H (docs + suites)
 
-- (nothing in flight)
+---
 
-## Milestone 4 phases
+## Next session — Slice E: Arizona data dashboard
 
-**Phase A — Go live**
-- [x] Perry: create Supabase project; run migrations 0001 + 0002; fill `.env.local` — 2026-07-26
-- [x] Full live run: sign in → onboarding → event → QR capture → stage moves via UI → board/contacts/tasks/ledger → cron tick — 2026-07-26
-- [x] Fix what the first live run surfaced: undeletable contacts, dateless waiting room, unretryable failed sends, ledger copy bug — 2026-07-26
-- [x] Perry: run `0003_erasure.sql` — applied, verified — 2026-07-26
-- [x] Purge leftover test agencies (`scripts/purge-test-agencies.mjs`) — 2026-07-26
-- [x] Perry: run `0004_erasure_authz_fix.sql` — applied; anon erasure hole closed — 2026-07-26
-- [x] All three suites green: smoke 32/32, cron 9/9, anon-audit 17 safe / 0 exposed — 2026-07-26
-- [x] UI re-verified live: stage moves on the new 4-arg RPC, inline wake-up picker stores both custom and default dates — 2026-07-26
+### ⚠️ Do this first (human, ~10 minutes)
 
-**Phase B — Prove the invariants**
-- [x] RLS isolation test: two agencies, zero cross-visibility — `scripts/smoke-test.mjs` — 2026-07-26
-- [x] Send-layer tests: consent block, opt-out irreversible, dedupe, no-send-to-unconsented — 2026-07-26
-- [x] Cron behavior tests: wake-ups, cold flags, once-only — `scripts/cron-test.mjs` — 2026-07-26
-- [x] Anonymous attack-surface audit — `scripts/anon-audit.mjs`; found the anon erasure hole — 2026-07-26
-- [ ] Playwright e2e capture flow; throttled-network check on `/c/[slug]` (<1s) — medium
-- [ ] Wire both scripts into CI once a hosted test project exists — small
+`dcs.az.gov` returns **403 to every server-side fetcher** — curl, node, the
+agent's tools. The workbooks must be downloaded in a real browser.
 
-**Phase C — Deploy** (next up)
-- [ ] Perry: Vercel project + env vars (`NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`=prod, `CRON_SECRET`, `INBOUND_WEBHOOK_SECRET`)
-- [ ] Verify prod flow, cron firing, QR codes point at prod URL
-- [ ] Perry (when email goes live): Resend account + verified domain → `RESEND_API_KEY`/`EMAIL_FROM`
+1. Download **Semi-Annual Child Welfare Report, Mar 2026** (XLSX, ~1.1 MB)
+   https://dcs.az.gov/content/semi-annual-child-welfare-report-mar-2026
+2. Download **Monthly Operational & Outcomes Report, Jun 2026** (XLSX, ~1 MB)
+   https://dcs.az.gov/content/monthly-operational-outcomes-report-june-2026
+3. Drop both somewhere in the repo (gitignored) and say where.
 
-**Phase D — Pilot onboarding** (after C, needs signed agency)
-- [ ] Onboard design partner: seed sources, backfill licensed homes, import contacts
-- [ ] Saturday rehearsal: printed QR, 5 phone captures, board-ready ledger export
+Then: inventory both workbooks into `docs/az-data-sources.md` — tab names,
+header row index, which tab holds each A.R.S. §8-526 item, county-name
+spellings, whether regions are named or coded. **Do not write the parser
+before that file exists.**
 
-**Out of M4:** Twilio/A2P (needs business entity), Spanish, Binti handoff.
+### What the public data actually supports (verified — respect exactly)
+
+| Grain | Metrics |
+|---|---|
+| **By county** | entries into out-of-home care; % of children placed (§8-526 items 12, 14, 15) |
+| **By DCS region** | minimum licensed foster homes *required* — the state's own target (item 18) |
+| **Statewide only** | children in care point-in-time (20); congregate care # and % (22); total licensed homes + kinship split (17) |
+| **Not published** | children currently in care *per county*; licensed homes *per county* |
+
+The page must **say so in plain English** where a grain isn't published,
+rather than showing a blank. No API, no CSV, no open-data portal — ingest is a
+human-run script twice a year, not a cron scrape.
+
+### Build
+
+- **Migration 0007**: `az_geo` (state/region/county, FK'd from everything so a
+  typo can't orphan a number), `az_metric` (with `published_levels` — what lets
+  the UI *say* what Arizona doesn't publish), `az_stat_source` (with
+  `source_kind`, because "1,046 homes" is the Governor's office via KJZZ, not a
+  DCS dataset), `az_stat` (**no write policy at all** — service-role only),
+  `agency_target` (agency-scoped RLS), `agency_county`.
+  Remember: `revoke ... from anon` by name on every new function.
+- **Seed the six verified headlines in the migration**, so the page ships and
+  demos before any parsing exists:
+  - 1,046 additional foster homes needed over 12 months — Gov. Hobbs' office
+    via KJZZ, 2025-12-05
+  - licensed homes down 62%, 2017→2025 — same
+  - children in group homes 1,995 (2021) → 1,732 (2024) → 1,457 (2026,
+    **flag as projection**)
+  - DCS FY26 goal: −2% congregate care days
+  - foster reimbursement +50% for ages 6–18, effective 2025-12-01
+  - "over 7,000 children need foster or adoptive care" — DCS, **undated page,
+    must be labelled as such**
+- **`/arizona`** in three bands: statewide headlines (using the existing
+  `Cited` component), your counties, your goals. Agency-entered targets render
+  in the warm/handwritten treatment so they can never be mistaken for state
+  data.
+- **`scripts/az-stats-import.mjs`** with a dry-run diff against `az_stat`,
+  `--apply` to upsert. `xlsx` as a devDependency only.
+
+**Done means:** every number carries a visible publisher, link and as-of date;
+projections are labelled; unpublished grains are stated, not hidden.
+
+---
+
+## Then — Slices F, G, H
+
+**F — Family onboarding progress** (migration 0008). Biggest remaining piece
+and a deliberate departure from spec §02.
+- `journey_requirement` (global AZ catalog + per-agency overrides, same pattern
+  as `nurture_template`), `journey`, `journey_step`.
+- ⚠️ **`ON DELETE CASCADE` on both journey FKs** or `delete_contact()` aborts →
+  `purgeAgency` fails → every suite goes red.
+- Seed the real AZ requirements (Level 1 Fingerprint Clearance Card, FBI/local
+  background check, 3 computer-based trainings, 10 instructor-led webinars over
+  5 weeks, all training within 8 weeks, home study, medical qualification,
+  life-safety inspection, 21+). **No hour counts in any copy** — DCS's FAQ says
+  15 in-class hours, its training page implies 30; cite structure only and put
+  that reasoning in a SQL comment.
+- A family in onboarding sits at `inquiry` with a parallel `journey` row. **No
+  new `contact_stage` value** — it would reinterpret existing history and break
+  `BOARD_STAGES`/`WARM_STAGES`/cron filters.
+- Call it **"Onboarding progress"**, never "Licensing". No document upload, no
+  e-signature, no case data. Completing every step *prompts* "Mark licensed?",
+  never performs it.
+
+**G — Teammates + getting-started checklist** (migration 0009). `agency_invite`
++ `accept_invite` RPC (replacing the service-role write in onboarding),
+`/settings/team`, dashboard checklist that ticks itself and disappears.
+**CSV contact import stays out of scope** — importing a list with no consent
+provenance is the one change that could turn Porchlight into the thing it
+exists to prevent (ADR-004).
+
+**H — Docs + suites.** Extend `anon-audit` with every new table and RPC;
+`smoke-test` with journey cascade and `az_stat` read-only-ness; write ADR-008
+(journey as parallel record), ADR-009 (public vs agency statistics), ADR-010
+(demo tenancy). Then merge `m5-client-ready` to `main`.
+
+---
 
 ## Blocked
 
 - [ ] Twilio A2P 10DLC registration — needs a legal business entity/EIN
-
-## Recently Completed
-
-- [x] M0 foundation (schema, RLS, auth) — 2026-07-26
-- [x] M1 capture (events, QR, capture page, quick-add, board) — 2026-07-26
-- [x] M2 warmth (send layer, nurture, waiting room, cron, webhook) — 2026-07-26
-- [x] M3 ambassadors + attribution ledger + backfill — 2026-07-26
-- [x] Public landing page + storybook redesign + no-env deploy hardening — 2026-07-26
+- [ ] Real email send never verified — needs a Resend account + verified domain
 
 ## Bugs
 
-- (none known — nothing has run against a live DB yet)
+- (none open)
 
 ## Tech Debt
 
-- [x] StageSelect `prompt()` → inline date picker — 2026-07-26
-- [x] `wake_up_on` now rides along inside `set_contact_stage` (one round-trip) — 2026-07-26
-- [ ] Onboarding creates one agency per user; no invitations/teammates yet
-- [ ] A send that crashes mid-flight leaves a `sending` row that never retries (deliberate: prefers a missed email over a double-send). Revisit with a stale-claim sweeper if it bites.
-- [ ] No UI for erasure yet — `delete_contact()` exists but nothing calls it; add a "Delete this person" action on the contact row
-- [ ] Cron loops contacts in TypeScript; fine at pilot scale, revisit ~10k contacts
+- [ ] `/ledger` aggregates in TypeScript over every contact; move to a SQL view past ~1,000
+- [ ] A send that crashes mid-flight leaves a `sending` row that never retries (deliberate: prefers a missed email to a double-send)
+- [ ] Onboarding still creates one agency per user via the service role — Slice G replaces this
+- [ ] Board has no drag-and-drop; per-card `<select>` is the mechanism
+- [ ] Suites aren't in CI — needs a throwaway Supabase project

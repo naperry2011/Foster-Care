@@ -92,6 +92,46 @@ First touch is the source of record (later touches visible in the timeline). Lic
 
 ---
 
+## ADR-010: The demo agency is its own tenant, not a flag on records
+
+**Date:** 2026-07-26
+**Status:** Accepted
+
+**Context**
+A demo on an empty database shows zeros everywhere; the ledger and waiting room only make their argument with history behind them. But seeded data must never mix with a pilot agency's real families.
+
+**Decision**
+Demo data lives in a separate agency flagged `is_demo`, with its own login. `delete_demo_data()` refuses any agency not so flagged. `send.ts` refuses to send from a demo agency and **fails closed** if it cannot determine the flag. The generator uses a fixed PRNG seed so every rebuild is identical.
+
+**Consequences**
+- **Positive:** demo and pilot data are separated by the same RLS boundary that separates two real agencies — nothing new to trust. Screenshots stay valid across rebuilds.
+- **Negative:** one user belongs to one agency (`app_user.id` is the PK referencing `auth.users`), so viewing the demo means signing out and back in. A real agency switcher would mean rewriting the RLS spine.
+
+**Alternatives considered**
+- `is_demo` on each record — every query everywhere would need the filter, and one missed filter puts fake families in a real ledger.
+- Seeding a real agency and deleting afterwards — one slip destroys pilot data.
+
+**Why the send block matters:** the cron runs as service_role across every agency. Without the block, the moment a Resend key exists a seeded demo would mail 200 `@porchlight.demo` addresses, and the bounces would damage the sending domain's reputation before the first genuine nurture email went out.
+
+---
+
+## ADR-011: Provenance enforced by the type system
+
+**Date:** 2026-07-26
+**Status:** Accepted
+
+**Context**
+The Arizona dashboard's entire credibility rests on every public figure being attributable. A number without a source, shown to a recruitment director who then repeats it to a board, is worse than no number.
+
+**Decision**
+The `Cited` component takes a required `source: Citation` prop (publisher, title, URL, as-of date, optional projection flag). There is no code path that renders a cited figure without its citation. Public figures and agency-entered targets live in physically separate tables (`az_stat` vs `agency_target`), never one table with an `is_official` boolean.
+
+**Consequences**
+- **Positive:** the same structural guarantee `send.ts` gives consent, applied to provenance. An agency's goal cannot be mistaken for a state statistic.
+- **Negative:** adding a figure means adding a source row; slightly more ceremony per number. That is the point.
+
+---
+
 ## ADR-007: Append-only history, with one audited door out
 
 **Date:** 2026-07-26

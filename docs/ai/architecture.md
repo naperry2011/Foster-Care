@@ -4,17 +4,28 @@ System design at a glance. Pair with docs/PLAN.md (product plan) and the migrati
 
 ## System Overview
 
-Porchlight is a multi-tenant Next.js 15 (App Router) monolith on Vercel backed entirely by Supabase. Pilot scale: a handful of agencies, thousands of contacts. All automation is a single daily cron; there is no queue, no workers, no second service.
+Porchlight is a multi-tenant **Next.js 16.2** (App Router) monolith on Vercel backed entirely by Supabase. Pilot scale: a handful of agencies, thousands of contacts. All automation is a single daily cron; there is no queue, no workers, no second service.
 
 **Style:** Monolith (server components + server actions + 3 API routes)
 **Hosting:** Vercel + Supabase managed Postgres
 
+### Next 16 specifics that constrain the code
+- The request-proxy file is `src/proxy.ts` exporting `proxy()` — `middleware.ts` is the deprecated name.
+- `cookies()`, `params` and `searchParams` are Promise-only; there is no synchronous shim.
+- `error.tsx` receives `unstable_retry`, not `reset`.
+- Turbopack is the default for dev *and* build; `next lint` is gone (we run `eslint` directly).
+- Vendored docs live at `node_modules/next/dist/docs/` — consult them before writing App Router code (AGENTS.md mandates this).
+
 ## Core Components
 
 ### Web app (`src/app/`)
-- **Responsibility:** everything user-facing. `/` = landing (signed out) or dashboard; `/events`, `/board`, `/contacts`, `/tasks`, `/ambassadors`, `/ledger` behind auth; `/c/[slug]` public capture; `/u/[id]` unsubscribe; `/onboarding` first-run agency creation.
-- **Tech:** React server components; server actions for writes; Tailwind v4 tokens in `globals.css`; fonts Fraunces/Karla/Caveat.
-- **Key files:** `src/components/Landing.tsx`, `src/components/StageSelect.tsx`, `src/lib/auth.ts` (requireUser), `src/middleware.ts` (session refresh + auth gate; no-ops without env vars).
+- **Responsibility:** everything user-facing. `/` = landing (signed out) or dashboard, so it sits *outside* the route group and renders the shell itself. Everything else authed lives in the **`(app)` route group**, whose single layout calls `requireUser()` once and wraps children in `AppShell`: `/board`, `/contacts`, `/contacts/[id]`, `/events`, `/events/[id]`, `/tasks`, `/ambassadors`, `/ledger`, `/ledger/backfill`, `/settings`, `/settings/demo`. Public: `/c/[slug]` capture, `/u/[id]` unsubscribe, `/login`, `/onboarding`.
+- **Tech:** React server components; server actions for writes; Tailwind v4 tokens in `globals.css`; fonts Fraunces (display) / Karla (body) / Caveat (handwritten).
+- **Key files:** `src/components/AppShell.tsx`, `AccountMenu.tsx` (sign-out), `ContactTimeline.tsx`, `StageSelect.tsx`, `src/components/ui/*` (shared primitives; `Cited` enforces provenance), `src/lib/auth.ts` (`requireUser` → `CurrentUser` incl. `isDemo`), `src/lib/timeline.ts` (merges four append-only sources into one story), `src/proxy.ts`.
+
+### Demo agency (`src/lib/demo/`)
+- **Responsibility:** a complete 18-month recruitment history for sales demos, in its own `is_demo` tenant. Fixed PRNG seed → identical every rebuild.
+- **Guards:** `delete_demo_data()` refuses non-demo agencies; `send.ts` refuses to send from a demo agency and fails closed. See ADR-010.
 
 ### Data layer (`supabase/migrations/`)
 - **Responsibility:** schema AND business invariants (see decisions.md ADR-002).

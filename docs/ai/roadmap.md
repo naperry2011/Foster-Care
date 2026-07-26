@@ -8,21 +8,27 @@ Porchlight is the pre-inquiry recruitment layer for foster care agencies: captur
 
 ## Current Focus
 
-**Theme:** From "builds clean" to "runs live"
+**Theme:** Milestone 5 — client-ready. Make it presentable enough that an
+Arizona recruitment director sees a product, not a prototype.
 **Goals:**
-1. Wire real Supabase project + verify the full flow end-to-end
+1. Finish M5 (slices E–H) and merge to `main`
 2. Land one Arizona design-partner agency for a single-event pilot
 
 ## Now
 
-- Supabase project creation + migrations + real env vars — blocked on Perry
-- End-to-end pilot rehearsal (event → QR → capture → board → licensed → ledger)
+- **Slice E — Arizona data dashboard.** Blocked on a human download: `dcs.az.gov`
+  403s server-side fetchers, so the two DCS workbooks must be fetched in a real
+  browser before county data can be modelled. Headline figures can ship first.
+- Slice F — family onboarding progress tracker
+- Slice G — teammates + getting-started checklist
+- Slice H — extend suites, write ADR-008/009, merge the branch
 
 ## Next
 
-- Verification suite from docs/PLAN.md: RLS isolation tests, Playwright e2e, send-layer tests, 3G capture-page check
-- Vercel production deploy with cron + Resend configured
-- Design-partner onboarding: seed sources, backfill outcomes, import contacts
+- Resend account + verified domain → first real nurture email ever sent
+- Playwright e2e and the throttled-3G capture-page check
+- Suites into CI (needs a throwaway Supabase project)
+- Design-partner onboarding: seed sources, backfill outcomes
 
 ## Later (v1.1 → v2, per spec)
 
@@ -33,6 +39,8 @@ Porchlight is the pre-inquiry recruitment layer for foster care agencies: captur
 
 ## Recently Completed
 
+- M5 slices A–D: app shell + sign-out, contact timeline, design system, demo agency — 2026-07-26
+- M4-A/B: live Supabase, five verification suites, four defects and one security hole found and fixed — 2026-07-26
 - MVP milestones 0–3 + landing page — 2026-07-26
 
 ## Deferred / Cancelled
