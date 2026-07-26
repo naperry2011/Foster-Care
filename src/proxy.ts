@@ -47,6 +47,12 @@ export async function proxy(request: NextRequest) {
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    // Carry the destination through sign-in. Without this an invitation link
+    // opened by somebody who isn't signed in yet drops them on the dashboard
+    // with no way back to the invite. Only the path travels — any query string
+    // is dropped rather than round-tripped through an email.
+    url.search = "";
+    url.searchParams.set("next", path);
     return NextResponse.redirect(url);
   }
 

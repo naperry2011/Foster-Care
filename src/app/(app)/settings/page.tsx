@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { updateAgency } from "./actions";
 
@@ -45,6 +46,16 @@ export default async function SettingsPage() {
           Save changes
         </button>
       </form>
+
+      <Link
+        href="/settings/team"
+        className="mt-4 block rounded-2xl border border-rule bg-white p-6 hover:border-porch transition-colors"
+      >
+        <span className="font-display font-semibold">Your team →</span>
+        <span className="block text-sm text-muted mt-1">
+          Invite colleagues so recruitment outlives any one recruiter.
+        </span>
+      </Link>
     </main>
   );
 }

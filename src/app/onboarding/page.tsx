@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 // First sign-in with no app_user row: create an agency and join it.
-// Pilot-simple; invitations come later.
+// Anyone joining an existing agency comes through /join/[token] instead.
 export default async function OnboardingPage() {
   const supabase = await createClient();
   const {
@@ -20,7 +20,6 @@ export default async function OnboardingPage() {
   async function createAgency(formData: FormData) {
     "use server";
     const { createClient: createServer } = await import("@/lib/supabase/server");
-    const { createClient: createAdmin } = await import("@supabase/supabase-js");
 
     const supabase = await createServer();
     const {
@@ -32,24 +31,16 @@ export default async function OnboardingPage() {
     const fullName = String(formData.get("name") ?? "").trim();
     if (!agencyName) return;
 
-    // agency + app_user creation crosses RLS boundaries -> service role
-    const admin = createAdmin(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-    const { data: agency, error: aErr } = await admin
-      .from("agency")
-      .insert({ name: agencyName })
-      .select("id")
-      .single();
-    if (aErr) throw aErr;
-    const { error: uErr } = await admin.from("app_user").insert({
-      id: user.id,
-      agency_id: agency.id,
-      full_name: fullName || null,
-      role: "director",
+    // Creating an agency crosses the RLS boundary — there is no agency to be
+    // scoped to yet — so it goes through a security-definer RPC that will only
+    // ever do it for a signed-in caller who has no agency. This used to be a
+    // service-role client built inside a request handler, which meant app code
+    // holding a key that could read every tenant. See migration 0009.
+    const { error } = await supabase.rpc("create_agency", {
+      p_name: agencyName,
+      p_full_name: fullName || null,
     });
-    if (uErr) throw uErr;
+    if (error) throw error;
     redirect("/");
   }
 

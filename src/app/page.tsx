@@ -3,6 +3,7 @@ import Landing from "@/components/Landing";
 import AppShell from "@/components/AppShell";
 import StatTile from "@/components/ui/StatTile";
 import EmptyState from "@/components/ui/EmptyState";
+import GettingStarted from "@/components/GettingStarted";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,6 +28,8 @@ export default async function Home() {
     { count: waiting },
     { count: licensed },
     { data: tasks },
+    { count: teammates },
+    { count: myCounties },
   ] = await Promise.all([
     supabase.from("contact").select("*", { count: "exact", head: true }),
     supabase.from("source").select("*", { count: "exact", head: true }),
@@ -41,7 +44,43 @@ export default async function Home() {
       .is("done_at", null)
       .order("due_on")
       .limit(5),
+    supabase.from("app_user").select("*", { count: "exact", head: true }),
+    supabase.from("agency_county").select("*", { count: "exact", head: true }),
   ]);
+
+  // Ticks itself off what already exists; hides itself once all five are done.
+  const gettingStarted = [
+    {
+      label: "Create your first event or source",
+      done: (sources ?? 0) > 0,
+      href: "/events",
+      hint: "Everything traces back to where somebody was first reached.",
+    },
+    {
+      label: "Capture your first contact",
+      done: (contacts ?? 0) > 0,
+      href: "/events",
+      hint: "Scan your own QR code and put yourself in — it takes ten seconds.",
+    },
+    {
+      label: "Tell us which counties you recruit in",
+      done: (myCounties ?? 0) > 0,
+      href: "/arizona",
+      hint: "Unlocks the county figures Arizona publishes.",
+    },
+    {
+      label: "Record a home you've already licensed",
+      done: (licensed ?? 0) > 0,
+      href: "/ledger/backfill",
+      hint: "The ledger argues from history. Give it some.",
+    },
+    {
+      label: "Invite a teammate",
+      done: (teammates ?? 0) > 1,
+      href: "/settings/team",
+      hint: "Recruitment outlives any one recruiter.",
+    },
+  ];
 
   const firstName = user.fullName?.trim().split(" ")[0];
   const isEmpty = (contacts ?? 0) === 0 && (sources ?? 0) === 0;
@@ -95,6 +134,8 @@ export default async function Home() {
             ))}
           </div>
         )}
+
+        <GettingStarted steps={gettingStarted} />
 
         <section className="mt-10">
           <div className="flex items-baseline justify-between">
