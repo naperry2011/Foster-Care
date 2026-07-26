@@ -14,11 +14,19 @@ export default function LoginPage() {
     e.preventDefault();
     setStatus("sending");
     const supabase = createClient();
+    // Read ?next= off the URL here rather than with useSearchParams, which
+    // would force this whole page behind a Suspense boundary for one string.
+    // Relative paths only — an absolute URL here would make the sign-in link
+    // an open redirect.
+    const raw = new URLSearchParams(window.location.search).get("next") ?? "";
+    const next = raw.startsWith("/") && !raw.startsWith("//") ? raw : "";
+    const callback = `${window.location.origin}/auth/callback${
+      next ? `?next=${encodeURIComponent(next)}` : ""
+    }`;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { emailRedirectTo: callback },
     });
     if (error) {
       setError(error.message);
@@ -33,7 +41,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 mb-8 justify-center">
           <span className="w-2.5 h-2.5 rounded-full bg-porch shadow-[0_0_20px_4px_rgba(233,162,59,.5)]" />
-          <span className="font-serif text-2xl font-semibold text-white">
+          <span className="font-display text-2xl font-semibold text-white">
             Porchlight
           </span>
         </div>

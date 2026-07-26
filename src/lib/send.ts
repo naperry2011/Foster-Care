@@ -18,6 +18,26 @@ export type Template = {
   body: string;
 };
 
+// Cached for the life of the process: an agency does not stop being a demo.
+const demoCache = new Map<string, boolean>();
+
+async function isDemoAgency(
+  admin: ReturnType<typeof createAdminClient>,
+  agencyId: string
+): Promise<boolean> {
+  const cached = demoCache.get(agencyId);
+  if (cached !== undefined) return cached;
+  const { data } = await admin
+    .from("agency")
+    .select("is_demo")
+    .eq("id", agencyId)
+    .maybeSingle();
+  // fail closed: if we can't tell, don't send
+  const isDemo = data?.is_demo ?? true;
+  demoCache.set(agencyId, isDemo);
+  return isDemo;
+}
+
 // The consent gate lives HERE, not in the callers. Every automated email in
 // the system goes through this function; there is no other path to Resend.
 // Idempotency: send_log has UNIQUE (contact_id, dedupe_key) — we claim the
@@ -41,6 +61,14 @@ export async function sendNurtureEmail(
   // No provider configured: do nothing at all. Claiming a dedupe key here
   // would permanently mark an email as handled that was never sent.
   if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) {
+    return "skipped";
+  }
+
+  // Demo agencies never send. The cron runs as service_role across every
+  // agency, so without this a seeded demo would blast 200 @porchlight.demo
+  // addresses the moment a Resend key exists — and the bounces would wreck
+  // the sending domain's reputation before the first real nurture email.
+  if (await isDemoAgency(admin, contact.agency_id)) {
     return "skipped";
   }
 

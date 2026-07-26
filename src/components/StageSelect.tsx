@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { STAGES, STAGE_LABELS, type Stage } from "@/lib/stages";
-import { moveStage } from "@/app/contacts/actions";
+import { moveStage } from "@/app/(app)/contacts/actions";
 
 function oneYearOut() {
   const d = new Date();

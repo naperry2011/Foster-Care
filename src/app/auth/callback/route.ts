@@ -4,7 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  // Only same-site paths. "//evil.com" is a protocol-relative URL that browsers
+  // treat as absolute, so it has to be rejected alongside "https://…".
+  const raw = searchParams.get("next") ?? "/";
+  const next = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
 
   if (code) {
     const supabase = await createClient();

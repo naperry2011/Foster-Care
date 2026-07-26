@@ -1,6 +1,6 @@
 // Porchlight live smoke test: exercises the real schema invariants as real
 // authenticated users against the live Supabase project.
-import { loadEnv, makeClients, makeTenant, purgeAgency } from "./lib.mjs";
+import { loadEnv, makeClients, makeTenant, makeStranger, purgeAgency } from "./lib.mjs";
 
 const env = loadEnv(process.argv[2] ?? ".env.local");
 const { admin, anon } = makeClients(env);
@@ -11,7 +11,7 @@ const fail = (n, d = "") => { results.push(["FAIL", n, d]); console.log(`  FAIL 
 const info = (m) => console.log(`\n== ${m}`);
 
 const stamp = Date.now();
-const made = { agencies: [] };
+const made = { agencies: [], strangers: [] };
 
 try {
   info("Setup: two tenants");
@@ -162,8 +162,165 @@ try {
   const { data: bLedger } = await B.client.from("outcome").select("id");
   (bLedger ?? []).length === 0 ? pass("agency B ledger is empty") : fail("agency B ledger is empty", "outcome leak");
 
+  // ---------- Arizona statistics (0007) ----------
+  info("Arizona statistics");
+  const { data: azRead } = await A.client.from("az_stat").select("metric_id").limit(5);
+  (azRead ?? []).length > 0
+    ? pass("signed-in user can read az_stat", `${azRead.length} row(s)`)
+    : fail("signed-in user can read az_stat", "seeded figures are unreadable");
+
+  // az_stat has a select policy and no write policy at all, so the only thing
+  // that can put a number there is the import script's service-role key.
+  const { error: azInsErr } = await A.client.from("az_stat").insert({
+    metric_id: "children_in_care", geo_id: "az", source_id: "dcs-learnmore",
+    period_label: `tamper ${stamp}`, value: 1,
+  });
+  azInsErr ? pass("az_stat is not writable by a signed-in user", azInsErr.message.slice(0, 40))
+           : fail("az_stat is not writable by a signed-in user", "STATE FIGURES ARE EDITABLE");
+
+  const { error: azUpdErr, count: azUpdCount } = await A.client.from("az_stat")
+    .update({ value: 1 }, { count: "exact" }).eq("geo_id", "az");
+  azUpdErr || azUpdCount === 0
+    ? pass("az_stat cannot be updated from the app")
+    : fail("az_stat cannot be updated from the app", `${azUpdCount} rows rewritten!`);
+
+  const { error: azDelErr, count: azDelCount } = await A.client.from("az_stat")
+    .delete({ count: "exact" }).eq("geo_id", "az");
+  azDelErr || azDelCount === 0
+    ? pass("az_stat cannot be deleted from the app")
+    : fail("az_stat cannot be deleted from the app", `${azDelCount} rows removed!`);
+
+  const { error: tgtErr } = await A.client.from("agency_target").insert({
+    agency_id: A.agencyId, label: "licensed in Maricopa", target_value: 12, unit: "homes",
+  });
+  tgtErr ? fail("agency can set its own target", tgtErr.message) : pass("agency can set its own target");
+
+  const { data: bTargets } = await B.client.from("agency_target").select("id");
+  (bTargets ?? []).length === 0
+    ? pass("agency B cannot see agency A's targets")
+    : fail("agency B cannot see agency A's targets", "goal leak");
+
+  // geo_level is pinned to 'county', so an agency cannot claim to serve a grain
+  // Arizona does not publish at.
+  const { error: badGeoErr } = await A.client.from("agency_county")
+    .insert({ agency_id: A.agencyId, geo_id: "az" });
+  badGeoErr ? pass("agency_county rejects a non-county geo", badGeoErr.message.slice(0, 40))
+            : fail("agency_county rejects a non-county geo", "state selectable as a county");
+
+  const { error: goodGeoErr } = await A.client.from("agency_county")
+    .insert({ agency_id: A.agencyId, geo_id: "az-maricopa" });
+  goodGeoErr ? fail("agency can select a county", goodGeoErr.message) : pass("agency can select a county");
+
+  // ---------- onboarding progress (0008) ----------
+  info("Onboarding progress");
+  const { data: journeyId, error: jErr } = await A.client.rpc("start_journey", {
+    p_contact_id: noDateId,
+  });
+  jErr ? fail("start_journey", jErr.message) : pass("start_journey", String(journeyId).slice(0, 8));
+
+  const { data: jSteps } = await A.client.from("journey_step")
+    .select("id, completed_on").eq("journey_id", journeyId);
+  (jSteps ?? []).length === 9
+    ? pass("checklist built from the Arizona catalog", `${jSteps.length} steps`)
+    : fail("checklist built from the Arizona catalog", `expected 9 steps, got ${jSteps?.length}`);
+
+  const { data: againId } = await A.client.rpc("start_journey", { p_contact_id: noDateId });
+  againId === journeyId
+    ? pass("start_journey is idempotent")
+    : fail("start_journey is idempotent", "a second call reset somebody's progress");
+
+  const { error: crossJourney } = await B.client.rpc("start_journey", { p_contact_id: noDateId });
+  crossJourney ? pass("agency B cannot start a journey on agency A's contact", crossJourney.message.slice(0, 40))
+               : fail("agency B cannot start a journey on agency A's contact", "CROSS-TENANT WRITE");
+
+  const { error: anonJourney } = await anon.rpc("start_journey", { p_contact_id: noDateId });
+  anonJourney ? pass("anon cannot start a journey") : fail("anon cannot start a journey", "ANON WRITE ALLOWED");
+
+  await A.client.from("journey_step")
+    .update({ completed_on: "2026-07-26" })
+    .eq("journey_id", journeyId);
+  const { data: jDone } = await A.client.from("journey")
+    .select("completed_on").eq("id", journeyId).single();
+  jDone?.completed_on
+    ? pass("finishing every step completes the journey", jDone.completed_on)
+    : fail("finishing every step completes the journey");
+
+  // The whole point: a checklist does not license anybody. Arizona does.
+  const { data: stillHeld } = await A.client.from("contact")
+    .select("stage").eq("id", noDateId).single();
+  stillHeld?.stage === "not_yet"
+    ? pass("completing the checklist does NOT change the contact's stage")
+    : fail("completing the checklist does NOT change the contact's stage", `stage became ${stillHeld?.stage}`);
+
+  const { error: reopenErr } = await A.client.from("journey_step")
+    .update({ completed_on: null }).eq("journey_id", journeyId);
+  const { data: jReopened } = await A.client.from("journey")
+    .select("completed_on").eq("id", journeyId).single();
+  !reopenErr && jReopened?.completed_on === null
+    ? pass("un-ticking a step reopens the journey")
+    : fail("un-ticking a step reopens the journey", reopenErr?.message ?? "completed_on stuck");
+
+  // ---------- team invitations (0009) ----------
+  info("Team invitations");
+  const inviteEmail = `invitee.${stamp}@porchlight.test`;
+  const { data: invite, error: invErr } = await A.client.from("agency_invite")
+    .insert({ agency_id: A.agencyId, email: inviteEmail, invited_by_user_id: A.userId })
+    .select("id, token").single();
+  invErr ? fail("create an invitation", invErr.message) : pass("create an invitation");
+
+  const { data: bSeesInvites } = await B.client.from("agency_invite").select("id");
+  (bSeesInvites ?? []).length === 0
+    ? pass("agency B cannot see agency A's invitations")
+    : fail("agency B cannot see agency A's invitations", "invite leak");
+
+  const { data: anonInvites } = await anon.from("agency_invite").select("id").limit(1);
+  (anonInvites ?? []).length === 0
+    ? pass("anon cannot read invitations")
+    : fail("anon cannot read invitations", "tokens readable by anyone");
+
+  // A forwarded link must not let the wrong person walk in.
+  const wrong = await makeStranger(env, admin, `wrong.${stamp}@porchlight.test`);
+  made.strangers.push(wrong.userId);
+  const { error: wrongErr } = await wrong.client.rpc("accept_invite", { p_token: invite.token });
+  wrongErr ? pass("invitation refuses a different email address", wrongErr.message.slice(0, 48))
+           : fail("invitation refuses a different email address", "ANYONE WITH THE LINK CAN JOIN");
+
+  const right = await makeStranger(env, admin, inviteEmail);
+  made.strangers.push(right.userId);
+  const { error: acceptErr } = await right.client.rpc("accept_invite", { p_token: invite.token });
+  acceptErr ? fail("invited person joins the agency", acceptErr.message)
+            : pass("invited person joins the agency");
+
+  const { data: joined } = await admin.from("app_user")
+    .select("agency_id").eq("id", right.userId).maybeSingle();
+  joined?.agency_id === A.agencyId
+    ? pass("they land in the inviting agency")
+    : fail("they land in the inviting agency", `agency_id ${joined?.agency_id}`);
+
+  const { error: reuseErr } = await wrong.client.rpc("accept_invite", { p_token: invite.token });
+  reuseErr ? pass("an accepted invitation cannot be reused", reuseErr.message.slice(0, 40))
+           : fail("an accepted invitation cannot be reused", "TOKEN STILL LIVE");
+
+  const { error: dupAgencyErr } = await A.client.rpc("create_agency", { p_name: "Second Agency" });
+  dupAgencyErr ? pass("an existing member cannot create a second agency", dupAgencyErr.message.slice(0, 40))
+               : fail("an existing member cannot create a second agency", "user now spans two tenants");
+
+  const { data: newAgencyId, error: newAgencyErr } = await wrong.client.rpc("create_agency", {
+    p_name: `Smoke Stranger ${stamp}`, p_full_name: "Stranger",
+  });
+  if (newAgencyErr) fail("a stranger can create their own agency", newAgencyErr.message);
+  else { made.agencies.push(newAgencyId); pass("a stranger can create their own agency"); }
+
+  const { error: anonAgencyErr } = await anon.rpc("create_agency", { p_name: "anon agency" });
+  anonAgencyErr ? pass("anon cannot create an agency") : fail("anon cannot create an agency", "ANON WRITE ALLOWED");
+
   // ---------- erasure ----------
   info("Right to erasure");
+
+  // A journey must not be able to veto an erasure request: without ON DELETE
+  // CASCADE the delete aborts, and "please delete my information" becomes
+  // unanswerable again for exactly the families furthest along.
+  const { data: erasableJourney } = await A.client.rpc("start_journey", { p_contact_id: capId });
   const { error: crossDel } = await B.client.rpc("delete_contact", { p_contact_id: capId });
   crossDel ? pass("agency B cannot erase agency A's contact") : fail("agency B cannot erase agency A's contact", "CROSS-TENANT DELETE");
 
@@ -180,6 +337,13 @@ try {
     ? pass("erasure removes their history too")
     : fail("erasure removes their history too", `${ghostTouch.length} orphan rows`);
 
+  const { data: ghostJourney } = await admin.from("journey").select("id").eq("id", erasableJourney);
+  const { data: ghostSteps } = await admin.from("journey_step").select("id").eq("journey_id", erasableJourney);
+  (ghostJourney ?? []).length === 0 && (ghostSteps ?? []).length === 0
+    ? pass("erasure takes the onboarding checklist with it")
+    : fail("erasure takes the onboarding checklist with it",
+           `${ghostJourney?.length} journey + ${ghostSteps?.length} step rows survived`);
+
   const { data: srcAlive } = await admin.from("source").select("id").eq("id", src.id);
   (srcAlive ?? []).length === 1
     ? pass("erasure keeps the source (ledger denominators stay honest)")
@@ -193,6 +357,11 @@ try {
   fail("UNCAUGHT", e.message);
 } finally {
   for (const ag of made.agencies) await purgeAgency(env, admin, ag);
+  // Strangers who never joined an agency aren't reachable from app_user, so
+  // purgeAgency can't find them.
+  for (const id of made.strangers) {
+    await admin.auth.admin.deleteUser(id).catch(() => {});
+  }
   console.log("\ncleanup done");
 
   const failed = results.filter((r) => r[0] === "FAIL");

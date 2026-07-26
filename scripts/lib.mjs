@@ -43,6 +43,23 @@ export async function makeUserIn(env, admin, agencyId, label = "user") {
   return { userId: u.user.id, email, client };
 }
 
+// A signed-in person who belongs to NO agency yet — what an invitee looks like
+// before they accept. makeUserIn() can't be used: it writes the app_user row
+// that accept_invite() and create_agency() are supposed to refuse to duplicate.
+export async function makeStranger(env, admin, email) {
+  const password = PW();
+  const { data: u, error } = await admin.auth.admin.createUser({
+    email, password, email_confirm: true,
+  });
+  if (error) throw error;
+  const client = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    auth: { persistSession: false },
+  });
+  const { error: sErr } = await client.auth.signInWithPassword({ email, password });
+  if (sErr) throw sErr;
+  return { userId: u.user.id, email, client };
+}
+
 export async function makeTenant(env, admin, label) {
   const { data: ag, error } = await admin.from("agency")
     .insert({ name: `Smoke ${label} ${Date.now()}` }).select("id").single();
@@ -63,6 +80,18 @@ export async function purgeAgency(env, admin, agencyId) {
     const { error } = await client.rpc("delete_contact", { p_contact_id: c.id });
     if (error) console.log(`  ! could not erase ${c.id}: ${error.message}`);
   }
+  // Agency-scoped rows that do NOT hang off a contact — outcome_confirm tasks
+  // carry contact_id = null, so nothing cascades them and they would block the
+  // agency delete on a foreign key.
+  await admin.from("task").delete().eq("agency_id", agencyId);
+  await admin.from("send_log").delete().eq("agency_id", agencyId);
+  // Journeys cascade away with their contacts, but an agency's own overrides
+  // and its Arizona settings hang off the agency directly and would block the
+  // final delete on a foreign key.
+  await admin.from("journey_requirement").delete().eq("agency_id", agencyId);
+  await admin.from("agency_invite").delete().eq("agency_id", agencyId);
+  await admin.from("agency_target").delete().eq("agency_id", agencyId);
+  await admin.from("agency_county").delete().eq("agency_id", agencyId);
   await admin.from("source").delete().eq("agency_id", agencyId);
 
   const { data: users } = await admin.from("app_user").select("id").eq("agency_id", agencyId);

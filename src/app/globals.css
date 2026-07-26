@@ -98,3 +98,37 @@ body {
   .star, .firefly, .porch-glow { animation: none; }
   .rise { animation: none; opacity: 1; transform: none; }
 }
+
+/* ---- board-ready export ----
+   The ledger is meant to be handed to an executive director on paper.
+   Drop the app chrome, flatten the colour, keep the numbers. */
+@media print {
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .rounded-2xl,
+  .rounded-xl,
+  .rounded-lg {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  a[href]::after {
+    content: "";
+  }
+}

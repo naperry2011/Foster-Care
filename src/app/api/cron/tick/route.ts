@@ -18,14 +18,23 @@ export async function GET(request: Request) {
   }
   const admin = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
-  const stats = { wakeUps: 0, nurtureSent: 0, cadenceSent: 0, coldFlags: 0 };
+  const stats = {
+    wakeUps: 0,
+    nurtureSent: 0,
+    cadenceSent: 0,
+    coldFlags: 0,
+    outcomeConfirms: 0,
+  };
 
   // ---- 1. wake-ups ----
+  // The date the recruiter chose is kept forever — it's the promise we made.
+  // wake_up_fired_at is what stops the task from firing twice.
   const { data: waking } = await admin
     .from("contact")
-    .select("id, agency_id, first_name, last_name, phone, email")
+    .select("id, agency_id, first_name, last_name, phone, email, wake_up_on")
     .eq("stage", "not_yet")
     .is("opted_out_at", null)
+    .is("wake_up_fired_at", null)
     .lte("wake_up_on", today);
   for (const c of waking ?? []) {
     const name =
@@ -36,10 +45,13 @@ export async function GET(request: Request) {
       agency_id: c.agency_id,
       contact_id: c.id,
       kind: "wake_up",
+      dedupe_key: `wake_up:${c.id}:${c.wake_up_on}`,
       title: `Wake-up: ${name} said "not yet" — the date they picked is here.`,
     });
-    // clear the clock so the task fires once
-    await admin.from("contact").update({ wake_up_on: null }).eq("id", c.id);
+    await admin
+      .from("contact")
+      .update({ wake_up_fired_at: new Date().toISOString() })
+      .eq("id", c.id);
     stats.wakeUps++;
   }
 
@@ -164,6 +176,36 @@ export async function GET(request: Request) {
       title: `Gone quiet: ${name} has been in "considering" with no contact for 30+ days.`,
     });
     stats.coldFlags++;
+  }
+
+  // ---- 5. monthly outcome confirmation ----
+  // Porchlight can't see the licensing system, so a human confirms licensed
+  // homes (ADR-005). That's one click a month — but only if something asks.
+  // The whole attribution ledger rests on this habit.
+  const month = today.slice(0, 7);
+  const staleCutoff = new Date();
+  staleCutoff.setDate(staleCutoff.getDate() - 60);
+  const { data: agencies } = await admin.from("agency").select("id");
+  for (const a of agencies ?? []) {
+    const { data: pending } = await admin
+      .from("contact")
+      .select("id, outcome(contact_id)")
+      .eq("agency_id", a.id)
+      .eq("stage", "inquiry")
+      .lte("captured_at", staleCutoff.toISOString());
+    const awaiting = (pending ?? []).filter(
+      (c) => !(c.outcome as unknown as unknown[])?.length
+    ).length;
+    if (awaiting === 0) continue;
+    const { error } = await admin.from("task").insert({
+      agency_id: a.id,
+      kind: "outcome_confirm",
+      dedupe_key: `outcome_confirm:${month}`,
+      title: `Monthly check: ${awaiting} ${
+        awaiting === 1 ? "family has" : "families have"
+      } been at inquiry for 60+ days. Any of them licensed yet?`,
+    });
+    if (!error) stats.outcomeConfirms++;
   }
 
   return NextResponse.json({ ok: true, ...stats });

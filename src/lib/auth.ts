@@ -8,6 +8,7 @@ export type CurrentUser = {
   role: string;
   agencyId: string;
   agencyName: string;
+  isDemo: boolean;
 };
 
 // Returns the signed-in app_user + agency, or redirects.
@@ -21,13 +22,16 @@ export async function requireUser(): Promise<CurrentUser> {
 
   const { data } = await supabase
     .from("app_user")
-    .select("id, full_name, role, agency_id, agency(name)")
+    .select("id, full_name, role, agency_id, agency(name, is_demo)")
     .eq("id", user.id)
     .single();
 
   if (!data) redirect("/onboarding");
 
-  const agency = data.agency as unknown as { name: string } | null;
+  const agency = data.agency as unknown as {
+    name: string;
+    is_demo: boolean;
+  } | null;
   return {
     id: data.id,
     email: user.email ?? "",
@@ -35,5 +39,6 @@ export async function requireUser(): Promise<CurrentUser> {
     role: data.role,
     agencyId: data.agency_id,
     agencyName: agency?.name ?? "",
+    isDemo: agency?.is_demo ?? false,
   };
 }

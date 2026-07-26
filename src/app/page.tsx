@@ -1,10 +1,15 @@
 import Link from "next/link";
 import Landing from "@/components/Landing";
+import AppShell from "@/components/AppShell";
+import StatTile from "@/components/ui/StatTile";
+import EmptyState from "@/components/ui/EmptyState";
+import GettingStarted from "@/components/GettingStarted";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
+// `/` is both the public landing page and the signed-in dashboard, so it sits
+// outside the (app) route group and renders the shell itself.
 export default async function Home() {
-  // No Supabase configured yet (fresh deploy) — show the public landing page.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return <Landing />;
   }
@@ -13,56 +18,162 @@ export default async function Home() {
   const {
     data: { user: authUser },
   } = await supabase.auth.getUser();
-
-  // signed-out visitors get the public landing page
   if (!authUser) return <Landing />;
 
   const user = await requireUser();
 
-  const [{ count: contacts }, { count: sources }, { count: waiting }] =
-    await Promise.all([
-      supabase.from("contact").select("*", { count: "exact", head: true }),
-      supabase.from("source").select("*", { count: "exact", head: true }),
-      supabase
-        .from("contact")
-        .select("*", { count: "exact", head: true })
-        .eq("stage", "not_yet"),
-    ]);
+  const [
+    { count: contacts },
+    { count: sources },
+    { count: waiting },
+    { count: licensed },
+    { data: tasks },
+    { count: teammates },
+    { count: myCounties },
+    { count: invitesSent },
+  ] = await Promise.all([
+    supabase.from("contact").select("*", { count: "exact", head: true }),
+    supabase.from("source").select("*", { count: "exact", head: true }),
+    supabase
+      .from("contact")
+      .select("*", { count: "exact", head: true })
+      .eq("stage", "not_yet"),
+    supabase.from("outcome").select("*", { count: "exact", head: true }),
+    supabase
+      .from("task")
+      .select("id, kind, title, contact_id")
+      .is("done_at", null)
+      .order("due_on")
+      .limit(5),
+    supabase.from("app_user").select("*", { count: "exact", head: true }),
+    supabase.from("agency_county").select("*", { count: "exact", head: true }),
+    supabase
+      .from("agency_invite")
+      .select("*", { count: "exact", head: true })
+      .is("revoked_at", null),
+  ]);
+
+  // Ticks itself off what already exists; hides itself once all five are done.
+  const gettingStarted = [
+    {
+      label: "Create your first event or source",
+      done: (sources ?? 0) > 0,
+      href: "/events",
+      hint: "Everything traces back to where somebody was first reached.",
+    },
+    {
+      label: "Capture your first contact",
+      done: (contacts ?? 0) > 0,
+      href: "/events",
+      hint: "Scan your own QR code and put yourself in — it takes ten seconds.",
+    },
+    {
+      label: "Tell us which counties you recruit in",
+      done: (myCounties ?? 0) > 0,
+      href: "/arizona",
+      hint: "Unlocks the county figures Arizona publishes.",
+    },
+    {
+      label: "Record a home you've already licensed",
+      done: (licensed ?? 0) > 0,
+      href: "/ledger/backfill",
+      hint: "The ledger argues from history. Give it some.",
+    },
+    {
+      label: "Invite a teammate",
+      // Sending the invitation is the step. Whether the colleague gets round to
+      // accepting is their business, and leaving the item unticked until they
+      // do would nag the wrong person.
+      done: (teammates ?? 0) > 1 || (invitesSent ?? 0) > 0,
+      href: "/settings/team",
+      hint: "Recruitment outlives any one recruiter.",
+    },
+  ];
+
+  const firstName = user.fullName?.trim().split(" ")[0];
+  const isEmpty = (contacts ?? 0) === 0 && (sources ?? 0) === 0;
 
   const stats = [
     { label: "Contacts captured", value: contacts ?? 0, href: "/contacts" },
     { label: "Sources & events", value: sources ?? 0, href: "/events" },
-    { label: "In the waiting room", value: waiting ?? 0, href: "/contacts?stage=not_yet" },
+    {
+      label: "Held warmly",
+      value: waiting ?? 0,
+      href: "/contacts?stage=not_yet",
+      tone: "porch" as const,
+    },
+    {
+      label: "Licensed homes",
+      value: licensed ?? 0,
+      href: "/ledger",
+      tone: "sage" as const,
+    },
   ];
 
   return (
-    <div className="flex-1">
-      <header className="bg-dusk text-white">
-        <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-porch shadow-[0_0_16px_3px_rgba(233,162,59,.5)]" />
-            <span className="font-semibold text-lg">Porchlight</span>
-          </div>
-          <span className="text-sm text-white/60">{user.agencyName}</span>
-        </div>
-      </header>
-      <main className="max-w-5xl mx-auto px-6 py-10">
-        <h1 className="text-2xl font-semibold">
-          Welcome{user.fullName ? `, ${user.fullName.split(" ")[0]}` : ""}
+    <AppShell user={user}>
+      <main className="max-w-6xl mx-auto px-6 py-10">
+        <p className="font-hand text-2xl text-clay">
+          {firstName ? `evening, ${firstName}` : "welcome back"}
+        </p>
+        <h1 className="font-display text-3xl font-semibold mt-1">
+          {user.agencyName}
         </h1>
-        <div className="grid gap-4 sm:grid-cols-3 mt-8">
-          {stats.map((s) => (
-            <Link
-              key={s.label}
-              href={s.href}
-              className="rounded-lg border border-rule bg-white p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="text-3xl font-semibold">{s.value}</div>
-              <div className="text-sm text-muted mt-1">{s.label}</div>
+
+        {isEmpty ? (
+          <div className="mt-8">
+            <EmptyState
+              title="Let's light the porch."
+              body="Everything starts with one event. Create it, get a QR code, and the next person who stops at your table stops being a memory."
+              ctaLabel="Create your first event"
+              ctaHref="/events"
+            />
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-8">
+            {stats.map((s) => (
+              <StatTile
+                key={s.label}
+                value={s.value}
+                label={s.label}
+                href={s.href}
+                tone={s.tone ?? "plain"}
+              />
+            ))}
+          </div>
+        )}
+
+        <GettingStarted steps={gettingStarted} />
+
+        <section className="mt-10">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-display text-xl font-semibold">
+              What needs you today
+            </h2>
+            <Link href="/tasks" className="text-sm text-sage hover:underline">
+              All tasks →
             </Link>
-          ))}
-        </div>
+          </div>
+          <ul className="mt-3 divide-y divide-rule rounded-2xl border border-rule bg-white overflow-hidden">
+            {(tasks ?? []).map((t) => (
+              <li key={t.id}>
+                <Link
+                  href={t.contact_id ? `/contacts/${t.contact_id}` : "/tasks"}
+                  className="block px-5 py-3.5 text-sm hover:bg-paper-2"
+                >
+                  {t.title}
+                </Link>
+              </li>
+            ))}
+            {(tasks ?? []).length === 0 && (
+              <li className="px-5 py-6 text-center text-sm text-muted">
+                Nothing needs a human right now. The waiting room is doing its
+                job quietly.
+              </li>
+            )}
+          </ul>
+        </section>
       </main>
-    </div>
+    </AppShell>
   );
 }

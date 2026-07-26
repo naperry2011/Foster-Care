@@ -2,67 +2,64 @@
 
 Active work. Update as items are completed and new work is identified.
 
-## Sprint / Iteration
+## Current milestone
 
-**Range:** Milestone 4 — Pilot readiness (planned 2026-07-26)
-**Goal:** App runs live end-to-end, deployed, pilot agency onboardable.
+**Milestone 5 — Client-ready. Complete (A–H), merged to `main`.**
 
-## In Progress
+A (app shell + bug sweep) · B (contact detail + timeline) · C (design system) ·
+D (demo agency) · E (Arizona data) · F (onboarding progress) · G (teammates) ·
+H (suites + docs)
 
-- (nothing in flight)
+Migrations 0001–0010 applied. Five suites green: smoke 59/59, cron 10/10,
+anon-audit 35 safe / 0 exposed, demo-test 5/5, plus `purge-test-agencies`.
 
-## Milestone 4 phases
+---
 
-**Phase A — Go live**
-- [x] Perry: create Supabase project; run migrations 0001 + 0002; fill `.env.local` — 2026-07-26
-- [x] Full live run: sign in → onboarding → event → QR capture → stage moves via UI → board/contacts/tasks/ledger → cron tick — 2026-07-26
-- [x] Fix what the first live run surfaced: undeletable contacts, dateless waiting room, unretryable failed sends, ledger copy bug — 2026-07-26
-- [x] Perry: run `0003_erasure.sql` — applied, verified — 2026-07-26
-- [x] Purge leftover test agencies (`scripts/purge-test-agencies.mjs`) — 2026-07-26
-- [x] Perry: run `0004_erasure_authz_fix.sql` — applied; anon erasure hole closed — 2026-07-26
-- [x] All three suites green: smoke 32/32, cron 9/9, anon-audit 17 safe / 0 exposed — 2026-07-26
-- [x] UI re-verified live: stage moves on the new 4-arg RPC, inline wake-up picker stores both custom and default dates — 2026-07-26
+## Next
 
-**Phase B — Prove the invariants**
-- [x] RLS isolation test: two agencies, zero cross-visibility — `scripts/smoke-test.mjs` — 2026-07-26
-- [x] Send-layer tests: consent block, opt-out irreversible, dedupe, no-send-to-unconsented — 2026-07-26
-- [x] Cron behavior tests: wake-ups, cold flags, once-only — `scripts/cron-test.mjs` — 2026-07-26
-- [x] Anonymous attack-surface audit — `scripts/anon-audit.mjs`; found the anon erasure hole — 2026-07-26
-- [ ] Playwright e2e capture flow; throttled-network check on `/c/[slug]` (<1s) — medium
-- [ ] Wire both scripts into CI once a hosted test project exists — small
+1. **Resend account + verified domain.** No nurture email has ever actually
+   been sent. This is the largest untested surface in the product and the only
+   one that touches a stranger's inbox.
+2. **Design-partner onboarding.** Seed their sources, backfill known licensed
+   homes, set their counties on `/arizona`.
+3. **Playwright e2e** (event → QR capture → board → stage change) and the
+   throttled-3G check on `/c/[slug]`.
+4. **Suites into CI** — needs a throwaway Supabase project so a run can create
+   and destroy tenants without touching the pilot database.
 
-**Phase C — Deploy** (next up)
-- [ ] Perry: Vercel project + env vars (`NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`=prod, `CRON_SECRET`, `INBOUND_WEBHOOK_SECRET`)
-- [ ] Verify prod flow, cron firing, QR codes point at prod URL
-- [ ] Perry (when email goes live): Resend account + verified domain → `RESEND_API_KEY`/`EMAIL_FROM`
+## Arizona data upkeep
 
-**Phase D — Pilot onboarding** (after C, needs signed agency)
-- [ ] Onboard design partner: seed sources, backfill licensed homes, import contacts
-- [ ] Saturday rehearsal: printed QR, 5 phone captures, board-ready ledger export
+Refresh twice a year, by hand — `dcs.az.gov` 403s every server-side fetcher, so
+a human with a real browser is part of the pipeline.
 
-**Out of M4:** Twilio/A2P (needs business entity), Spanish, Binti handoff.
+1. Download both workbooks into `az_docs/` (gitignored) — links and tab layout
+   in `docs/az-data-sources.md`.
+2. `node scripts/az-stats-import.mjs` to see the diff.
+3. `node scripts/az-stats-import.mjs --apply` to write it.
+
+Update the filename and `az_stat_source` title constants at the top of the
+script when the reports change edition.
 
 ## Blocked
 
 - [ ] Twilio A2P 10DLC registration — needs a legal business entity/EIN
-
-## Recently Completed
-
-- [x] M0 foundation (schema, RLS, auth) — 2026-07-26
-- [x] M1 capture (events, QR, capture page, quick-add, board) — 2026-07-26
-- [x] M2 warmth (send layer, nurture, waiting room, cron, webhook) — 2026-07-26
-- [x] M3 ambassadors + attribution ledger + backfill — 2026-07-26
-- [x] Public landing page + storybook redesign + no-env deploy hardening — 2026-07-26
+- [ ] Real email send never verified — needs a Resend account + verified domain
 
 ## Bugs
 
-- (none known — nothing has run against a live DB yet)
+- (none open)
 
 ## Tech Debt
 
-- [x] StageSelect `prompt()` → inline date picker — 2026-07-26
-- [x] `wake_up_on` now rides along inside `set_contact_stage` (one round-trip) — 2026-07-26
-- [ ] Onboarding creates one agency per user; no invitations/teammates yet
-- [ ] A send that crashes mid-flight leaves a `sending` row that never retries (deliberate: prefers a missed email over a double-send). Revisit with a stale-claim sweeper if it bites.
-- [ ] No UI for erasure yet — `delete_contact()` exists but nothing calls it; add a "Delete this person" action on the contact row
-- [ ] Cron loops contacts in TypeScript; fine at pilot scale, revisit ~10k contacts
+- [ ] `/ledger` aggregates in TypeScript over every contact; move to a SQL view past ~1,000
+- [ ] A send that crashes mid-flight leaves a `sending` row that never retries (deliberate: prefers a missed email to a double-send)
+- [ ] Board has no drag-and-drop; per-card `<select>` is the mechanism
+- [ ] Suites aren't in CI — needs a throwaway Supabase project
+- [ ] Invitations aren't emailed; the recruiter copies the link and sends it themselves
+- [ ] `delete_demo_data()` doesn't clear `agency_county`, `agency_target` or `agency_invite` — `seedDemoAgency` clears them itself, so a rebuild is still identical, but "empty it out" leaves them behind
+- [ ] Onboarding progress is only reachable from a contact's page; there is no "who's in onboarding" list
+
+### Closed by M5
+
+- ~~Onboarding creates one agency per user via the service role~~ — replaced by
+  `create_agency()` in 0009 (ADR-012)

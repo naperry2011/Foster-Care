@@ -13,8 +13,9 @@ Next.js (App Router) + TypeScript + Tailwind Â· Supabase (Postgres, RLS, Auth) Â
 ## Setup
 
 1. **Supabase**: create a project at supabase.com, then in the SQL editor run
-   `supabase/migrations/0001_schema.sql` followed by `0002_warmth.sql`
-   (or `supabase db push` with the CLI).
+   every file in `supabase/migrations/` in numeric order, `0001` to `0010`
+   (or `supabase db push` with the CLI). They are forward-only; nothing here
+   is idempotent, so run each exactly once.
 2. **Env**: copy `.env.example` to `.env.local` and fill in the Supabase URL,
    anon key, and service-role key. `RESEND_API_KEY`/`EMAIL_FROM` are only
    needed for nurture emails; `CRON_SECRET`/`INBOUND_WEBHOOK_SECRET` guard the
@@ -22,6 +23,10 @@ Next.js (App Router) + TypeScript + Tailwind Â· Supabase (Postgres, RLS, Auth) Â
 3. `npm install && npm run dev`
 4. Sign in with a magic link, create your agency on `/onboarding`, create an
    event on `/events`, and scan the QR code.
+5. **Arizona figures** (optional): `/arizona` ships with the headline numbers
+   seeded by migration 0007. For county data, download the two DCS workbooks
+   into `az_docs/` and run `node scripts/az-stats-import.mjs --apply` â€” see
+   [docs/az-data-sources.md](docs/az-data-sources.md).
 
 ## The rules the code enforces
 

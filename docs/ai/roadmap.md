@@ -8,21 +8,28 @@ Porchlight is the pre-inquiry recruitment layer for foster care agencies: captur
 
 ## Current Focus
 
-**Theme:** From "builds clean" to "runs live"
+**Theme:** Land the first paying design partner. The product is client-ready;
+what it has never done is send a real email or carry a real agency's families.
 **Goals:**
-1. Wire real Supabase project + verify the full flow end-to-end
+1. First genuine nurture email sent end to end (needs Resend + a domain)
 2. Land one Arizona design-partner agency for a single-event pilot
 
 ## Now
 
-- Supabase project creation + migrations + real env vars — blocked on Perry
-- End-to-end pilot rehearsal (event → QR → capture → board → licensed → ledger)
+- **Resend account + verified domain.** The send layer has been exercised only
+  against a missing API key, where it correctly skips. Nothing has reached an
+  inbox.
+- **Design-partner onboarding** — seed sources, backfill licensed homes, set
+  their counties on `/arizona`.
+- Playwright e2e + throttled-3G check on the capture page
+- Suites into CI (needs a throwaway Supabase project)
 
 ## Next
 
-- Verification suite from docs/PLAN.md: RLS isolation tests, Playwright e2e, send-layer tests, 3G capture-page check
-- Vercel production deploy with cron + Resend configured
-- Design-partner onboarding: seed sources, backfill outcomes, import contacts
+- Email the invitation from `/settings/team` instead of copying a link
+- A "who's in onboarding" list — the tracker is only reachable per contact
+- `/ledger` aggregation into a SQL view once an agency passes ~1,000 contacts
+- Refresh the Arizona figures when DCS publishes (twice a year; see tasks.md)
 
 ## Later (v1.1 → v2, per spec)
 
@@ -33,6 +40,8 @@ Porchlight is the pre-inquiry recruitment layer for foster care agencies: captur
 
 ## Recently Completed
 
+- M5 complete (A–H): app shell, contact timeline, design system, demo agency, Arizona dashboard, onboarding progress, teammates, suites — 2026-07-26
+- M4-A/B: live Supabase, five verification suites, four defects and one security hole found and fixed — 2026-07-26
 - MVP milestones 0–3 + landing page — 2026-07-26
 
 ## Deferred / Cancelled
