@@ -1,7 +1,5 @@
 import Link from "next/link";
-import AppNav from "@/components/AppNav";
 import PrintButton from "@/components/PrintButton";
-import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { SOURCE_KIND_LABELS, type SourceKind } from "@/lib/stages";
 
@@ -15,7 +13,6 @@ function median(nums: number[]): number | null {
 }
 
 export default async function LedgerPage() {
-  const user = await requireUser();
   const supabase = await createClient();
 
   const [{ data: sources }, { data: contacts }, { data: outcomes }, { data: notYetEvents }] =
@@ -85,8 +82,7 @@ export default async function LedgerPage() {
   };
 
   return (
-    <div className="flex-1">
-      <AppNav agencyName={user.agencyName} />
+    <>
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -187,6 +183,6 @@ export default async function LedgerPage() {
           </div>
         )}
       </main>
-    </div>
+    </>
   );
 }

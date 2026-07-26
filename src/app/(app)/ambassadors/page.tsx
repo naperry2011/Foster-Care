@@ -1,4 +1,3 @@
-import AppNav from "@/components/AppNav";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { makeSlug } from "@/lib/slug";
@@ -7,7 +6,7 @@ import { revalidatePath } from "next/cache";
 // An ambassador is a source of kind 'ambassador': their personal share link
 // is a capture link, so every referral is attributed automatically.
 export default async function AmbassadorsPage() {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createClient();
 
   const { data: ambassadors } = await supabase
@@ -38,8 +37,7 @@ export default async function AmbassadorsPage() {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   return (
-    <div className="flex-1">
-      <AppNav agencyName={user.agencyName} />
+    <>
       <main className="max-w-5xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-semibold">Ambassadors</h1>
         <p className="text-sm text-muted mt-1">
@@ -101,6 +99,6 @@ export default async function AmbassadorsPage() {
           )}
         </ul>
       </main>
-    </div>
+    </>
   );
 }

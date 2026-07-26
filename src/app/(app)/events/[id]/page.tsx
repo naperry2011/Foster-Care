@@ -1,7 +1,5 @@
 import QRCode from "qrcode";
 import { notFound } from "next/navigation";
-import AppNav from "@/components/AppNav";
-import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { STAGE_LABELS, type Stage } from "@/lib/stages";
 import { quickAddContact } from "../actions";
@@ -12,7 +10,6 @@ export default async function EventPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await requireUser();
   const supabase = await createClient();
 
   const { data: source } = await supabase
@@ -37,8 +34,7 @@ export default async function EventPage({
   });
 
   return (
-    <div className="flex-1">
-      <AppNav agencyName={user.agencyName} />
+    <>
       <main className="max-w-5xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-semibold">{source.name}</h1>
         <p className="text-muted text-sm mt-1">
@@ -126,6 +122,6 @@ export default async function EventPage({
           )}
         </ul>
       </main>
-    </div>
+    </>
   );
 }

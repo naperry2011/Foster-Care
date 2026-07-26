@@ -63,6 +63,11 @@ export async function purgeAgency(env, admin, agencyId) {
     const { error } = await client.rpc("delete_contact", { p_contact_id: c.id });
     if (error) console.log(`  ! could not erase ${c.id}: ${error.message}`);
   }
+  // Agency-scoped rows that do NOT hang off a contact — outcome_confirm tasks
+  // carry contact_id = null, so nothing cascades them and they would block the
+  // agency delete on a foreign key.
+  await admin.from("task").delete().eq("agency_id", agencyId);
+  await admin.from("send_log").delete().eq("agency_id", agencyId);
   await admin.from("source").delete().eq("agency_id", agencyId);
 
   const { data: users } = await admin.from("app_user").select("id").eq("agency_id", agencyId);

@@ -55,6 +55,9 @@ try {
   await admin.from("stage_change").insert({
     agency_id: agencyId, contact_id: optedOut, from_stage: "curious", to_stage: "considering", occurred_at: daysAgo(30),
   });
+  // 5. a family sitting at inquiry for months with no confirmed outcome —
+  //    what the monthly outcome_confirm nudge exists for
+  await mk({ email: `inquiry.${stamp}@example.test`, first_name: "Iris", stage: "inquiry" });
 
   console.log("\n== Cron tick");
   const res = await fetch("http://localhost:3000/api/cron/tick", {
@@ -71,9 +74,13 @@ try {
   kinds.includes("cold_flag") ? pass("cold flag raised for silent 'considering' contact")
                               : fail("cold flag raised", `tasks: ${kinds}`);
 
-  const { data: w } = await admin.from("contact").select("wake_up_on").eq("id", waker).single();
-  w.wake_up_on === null ? pass("wake-up clock cleared so the task fires once")
-                        : fail("wake-up clock cleared", `still ${w.wake_up_on}`);
+  // The promised date must survive; wake_up_fired_at is what stops a repeat.
+  const { data: w } = await admin.from("contact")
+    .select("wake_up_on, wake_up_fired_at").eq("id", waker).single();
+  w.wake_up_on === "2026-01-01" && w.wake_up_fired_at
+    ? pass("woken contact keeps its promised date", `wake_up_on ${w.wake_up_on}, fired`)
+    : fail("woken contact keeps its promised date",
+        `wake_up_on=${w.wake_up_on} fired_at=${w.wake_up_fired_at}`);
 
   const { data: sends } = await admin.from("send_log").select("contact_id,status,dedupe_key").eq("agency_id", agencyId);
   const emailed = new Set((sends ?? []).map((s) => s.contact_id));
@@ -89,7 +96,7 @@ try {
   });
   const body2 = await res2.json();
   console.log("  second tick:", JSON.stringify(body2));
-  const { data: tasks2 } = await admin.from("task").select("kind").eq("agency_id", agencyId);
+  const { data: tasks2 } = await admin.from("task").select("kind,title").eq("agency_id", agencyId);
   tasks2.filter((t) => t.kind === "wake_up").length === 1
     ? pass("re-running cron does not duplicate wake-up tasks")
     : fail("re-running cron does not duplicate wake-up tasks", `${tasks2.filter((t) => t.kind === "wake_up").length} tasks`);
@@ -103,6 +110,12 @@ try {
     ? pass("unsendable email leaves no burnt dedupe key (will retry)")
     : fail("unsendable email leaves no burnt dedupe key",
         `${sends2.length} rows would block forever: ${sends2.map((s) => s.dedupe_key + "=" + s.status)}`);
+
+  // the monthly outcome-confirmation habit the ledger depends on
+  const oc = tasks2.filter((t) => t.kind === "outcome_confirm");
+  oc.length === 1
+    ? pass("outcome_confirm task raised once per month", oc[0].title)
+    : fail("outcome_confirm task raised once per month", `${oc.length} tasks`);
 } catch (e) {
   fail("UNCAUGHT", e.stack?.split("\n")[0]);
 } finally {

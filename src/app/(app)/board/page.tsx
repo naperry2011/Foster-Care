@@ -1,16 +1,15 @@
-import AppNav from "@/components/AppNav";
 import StageSelect from "@/components/StageSelect";
-import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BOARD_STAGES, STAGE_LABELS, type Stage } from "@/lib/stages";
 
 export default async function BoardPage() {
-  const user = await requireUser();
   const supabase = await createClient();
 
   const { data: contacts } = await supabase
     .from("contact")
-    .select("id, first_name, last_name, phone, email, stage, wake_up_on, source(name)")
+    .select(
+      "id, first_name, last_name, phone, email, stage, wake_up_on, wake_up_fired_at, source(name)"
+    )
     .in("stage", BOARD_STAGES as string[])
     .order("captured_at", { ascending: false })
     .limit(1000);
@@ -23,8 +22,7 @@ export default async function BoardPage() {
   }
 
   return (
-    <div className="flex-1">
-      <AppNav agencyName={user.agencyName} />
+    <>
       <main className="max-w-7xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-semibold">Stage board</h1>
         <p className="text-sm text-muted mt-1">
@@ -63,8 +61,16 @@ export default async function BoardPage() {
                         </div>
                         <div className="text-xs text-muted mt-0.5">{src?.name}</div>
                         {isWaiting && (
-                          <div className="text-xs mt-1 text-porch font-medium">
-                            {c.wake_up_on ? `wakes ${c.wake_up_on}` : "no wake-up date!"}
+                          <div
+                            className={`text-xs mt-1 font-medium ${
+                              c.wake_up_fired_at ? "text-sage" : "text-porch"
+                            }`}
+                          >
+                            {!c.wake_up_on
+                              ? "no wake-up date!"
+                              : c.wake_up_fired_at
+                                ? `woke ${c.wake_up_on} — task waiting`
+                                : `wakes ${c.wake_up_on}`}
                           </div>
                         )}
                         <div className="mt-2">
@@ -82,6 +88,6 @@ export default async function BoardPage() {
           })}
         </div>
       </main>
-    </div>
+    </>
   );
 }

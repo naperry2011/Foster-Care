@@ -39,8 +39,11 @@ export async function createSource(formData: FormData) {
 }
 
 // Recruiter quick-add: contact created in seconds while standing at a table.
+// Goes through the quick_add_contact RPC so the contact and its stage_change
+// row are written in one transaction — the app can't create a contact whose
+// history is missing its first entry.
 export async function quickAddContact(formData: FormData) {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createClient();
 
   const sourceId = String(formData.get("source_id") ?? "");
@@ -50,33 +53,18 @@ export async function quickAddContact(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   if (!sourceId || (!phone && !email)) return;
 
-  const { data: contact, error } = await supabase
-    .from("contact")
-    .insert({
-      agency_id: user.agencyId,
-      source_id: sourceId,
-      captured_by_user_id: user.id,
-      phone,
-      email,
-      first_name: firstName,
-      notes,
-      stage: "curious",
-      // verbal consent gathered in person
-      consent_sms: formData.get("consent") === "on" && !!phone,
-      consent_email: formData.get("consent") === "on" && !!email,
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-
-  await supabase.from("stage_change").insert({
-    agency_id: user.agencyId,
-    contact_id: contact.id,
-    from_stage: null,
-    to_stage: "curious",
-    actor_user_id: user.id,
-    reason: "recruiter quick-add",
+  const consented = formData.get("consent") === "on";
+  const { error } = await supabase.rpc("quick_add_contact", {
+    p_source_id: sourceId,
+    p_phone: phone,
+    p_email: email,
+    p_first_name: firstName,
+    // verbal consent, gathered face to face
+    p_consent_email: consented && !!email,
+    p_consent_sms: consented && !!phone,
+    p_notes: notes,
   });
+  if (error) throw error;
 
   revalidatePath(`/events/${sourceId}`);
 }

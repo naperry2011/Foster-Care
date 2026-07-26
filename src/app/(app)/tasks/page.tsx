@@ -1,5 +1,3 @@
-import AppNav from "@/components/AppNav";
-import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
@@ -11,7 +9,6 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 export default async function TasksPage() {
-  const user = await requireUser();
   const supabase = await createClient();
 
   const { data: tasks } = await supabase
@@ -33,8 +30,7 @@ export default async function TasksPage() {
   }
 
   return (
-    <div className="flex-1">
-      <AppNav agencyName={user.agencyName} />
+    <>
       <main className="max-w-5xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-semibold">Tasks</h1>
         <p className="text-sm text-muted mt-1">
@@ -64,6 +60,6 @@ export default async function TasksPage() {
           )}
         </ul>
       </main>
-    </div>
+    </>
   );
 }

@@ -1,6 +1,4 @@
-import AppNav from "@/components/AppNav";
 import StageSelect from "@/components/StageSelect";
-import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { STAGES, STAGE_LABELS, type Stage } from "@/lib/stages";
 
@@ -10,7 +8,6 @@ export default async function ContactsPage({
   searchParams: Promise<{ stage?: string }>;
 }) {
   const { stage } = await searchParams;
-  const user = await requireUser();
   const supabase = await createClient();
 
   let query = supabase
@@ -26,8 +23,7 @@ export default async function ContactsPage({
   const { data: contacts } = await query;
 
   return (
-    <div className="flex-1">
-      <AppNav agencyName={user.agencyName} />
+    <>
       <main className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-semibold">
@@ -87,6 +83,6 @@ export default async function ContactsPage({
           </table>
         </div>
       </main>
-    </div>
+    </>
   );
 }

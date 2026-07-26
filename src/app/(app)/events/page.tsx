@@ -1,12 +1,9 @@
 import Link from "next/link";
-import AppNav from "@/components/AppNav";
-import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { SOURCE_KINDS, SOURCE_KIND_LABELS, type SourceKind } from "@/lib/stages";
 import { createSource } from "./actions";
 
 export default async function EventsPage() {
-  const user = await requireUser();
   const supabase = await createClient();
 
   const { data: sources } = await supabase
@@ -15,8 +12,7 @@ export default async function EventsPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="flex-1">
-      <AppNav agencyName={user.agencyName} />
+    <>
       <main className="max-w-5xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-semibold">Sources &amp; events</h1>
 
@@ -108,6 +104,6 @@ export default async function EventsPage() {
           )}
         </ul>
       </main>
-    </div>
+    </>
   );
 }

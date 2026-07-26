@@ -33,7 +33,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 mb-8 justify-center">
           <span className="w-2.5 h-2.5 rounded-full bg-porch shadow-[0_0_20px_4px_rgba(233,162,59,.5)]" />
-          <span className="font-serif text-2xl font-semibold text-white">
+          <span className="font-display text-2xl font-semibold text-white">
             Porchlight
           </span>
         </div>

@@ -1,11 +1,10 @@
-import AppNav from "@/components/AppNav";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 // Onboarding backfill: import homes the agency already licensed so the
 // ledger has real outcomes on it before the product has generated any.
 export default async function BackfillPage() {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createClient();
 
   const { data: sources } = await supabase
@@ -69,8 +68,7 @@ export default async function BackfillPage() {
   }
 
   return (
-    <div className="flex-1">
-      <AppNav agencyName={user.agencyName} />
+    <>
       <main className="max-w-xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-semibold">Backfill a licensed home</h1>
         <p className="text-sm text-muted mt-1">
@@ -107,6 +105,6 @@ export default async function BackfillPage() {
           </button>
         </form>
       </main>
-    </div>
+    </>
   );
 }
