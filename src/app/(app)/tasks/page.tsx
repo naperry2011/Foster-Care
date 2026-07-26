@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
@@ -43,7 +44,21 @@ export default async function TasksPage() {
                 <span className="text-xs rounded-full bg-paper-2 border border-rule px-2 py-0.5 mr-2">
                   {KIND_LABELS[t.kind] ?? t.kind}
                 </span>
-                <span className="text-sm">{t.title}</span>
+                {t.contact_id ? (
+                  <Link
+                    href={`/contacts/${t.contact_id}`}
+                    className="text-sm hover:text-sage hover:underline"
+                  >
+                    {t.title}
+                  </Link>
+                ) : (
+                  <Link
+                    href="/ledger"
+                    className="text-sm hover:text-sage hover:underline"
+                  >
+                    {t.title}
+                  </Link>
+                )}
               </div>
               <form action={completeTask}>
                 <input type="hidden" name="task_id" value={t.id} />

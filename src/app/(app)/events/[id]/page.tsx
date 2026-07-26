@@ -1,3 +1,4 @@
+import Link from "next/link";
 import QRCode from "qrcode";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -103,9 +104,12 @@ export default async function EventPage({
           {(contacts ?? []).map((c) => (
             <li key={c.id} className="px-5 py-3 flex items-center justify-between gap-3">
               <div>
-                <span className="font-medium">
+                <Link
+                  href={`/contacts/${c.id}`}
+                  className="font-medium hover:text-sage hover:underline"
+                >
                   {c.first_name || c.phone || c.email}
-                </span>
+                </Link>
                 <span className="text-sm text-muted ml-2">
                   {c.phone ?? c.email ?? ""}
                 </span>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import StageSelect from "@/components/StageSelect";
 import { createClient } from "@/lib/supabase/server";
 import { BOARD_STAGES, STAGE_LABELS, type Stage } from "@/lib/stages";
@@ -54,11 +55,14 @@ export default async function BoardPage() {
                         key={c.id}
                         className="rounded-md bg-white border border-rule p-3 shadow-sm"
                       >
-                        <div className="font-medium text-sm">
+                        <Link
+                          href={`/contacts/${c.id}`}
+                          className="font-medium text-sm hover:text-sage hover:underline"
+                        >
                           {[c.first_name, c.last_name].filter(Boolean).join(" ") ||
                             c.phone ||
                             c.email}
-                        </div>
+                        </Link>
                         <div className="text-xs text-muted mt-0.5">{src?.name}</div>
                         {isWaiting && (
                           <div

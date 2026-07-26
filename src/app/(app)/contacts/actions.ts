@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import type { Stage } from "@/lib/stages";
+import type { TouchChannel } from "@/lib/timeline";
 
 // All stage moves route through the set_contact_stage() RPC so the
 // append-only stage_change log can never be skipped.
@@ -42,4 +44,81 @@ export async function moveStage(formData: FormData) {
   revalidatePath("/board");
   revalidatePath("/contacts");
   revalidatePath("/ledger");
+}
+
+export async function updateContactNotes(formData: FormData) {
+  await requireUser();
+  const supabase = await createClient();
+  const id = String(formData.get("contact_id"));
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  const { error } = await supabase.from("contact").update({ notes }).eq("id", id);
+  if (error) throw error;
+  revalidatePath(`/contacts/${id}`);
+}
+
+// A recruiter recording a real conversation. Without this the timeline only
+// ever shows what the machine did, which is the smaller half of the story.
+export async function logManualTouch(formData: FormData) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const id = String(formData.get("contact_id"));
+  const channel = String(formData.get("channel") ?? "call") as TouchChannel;
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return;
+
+  const { error } = await supabase.from("touch").insert({
+    agency_id: user.agencyId,
+    contact_id: id,
+    direction: "in",
+    channel,
+    body,
+    created_by_user_id: user.id,
+  });
+  if (error) throw error;
+  revalidatePath(`/contacts/${id}`);
+}
+
+// Automation pauses itself when someone replies; this un-pauses it once a
+// human has actually followed up.
+export async function resumeAutomation(formData: FormData) {
+  await requireUser();
+  const supabase = await createClient();
+  const id = String(formData.get("contact_id"));
+  const { error } = await supabase
+    .from("contact")
+    .update({ automation_paused_at: null })
+    .eq("id", id);
+  if (error) throw error;
+  revalidatePath(`/contacts/${id}`);
+}
+
+export async function completeTask(formData: FormData) {
+  await requireUser();
+  const supabase = await createClient();
+  const taskId = String(formData.get("task_id"));
+  const contactId = String(formData.get("contact_id") ?? "");
+  await supabase
+    .from("task")
+    .update({ done_at: new Date().toISOString() })
+    .eq("id", taskId);
+  if (contactId) revalidatePath(`/contacts/${contactId}`);
+  revalidatePath("/tasks");
+}
+
+// Erasure — the whole person, not a soft delete. Goes through delete_contact()
+// so the append-only history is removed under its one audited exception.
+export async function eraseContact(formData: FormData) {
+  await requireUser();
+  const supabase = await createClient();
+  const id = String(formData.get("contact_id"));
+
+  const { error } = await supabase.rpc("delete_contact", { p_contact_id: id });
+  if (error) throw error;
+
+  revalidatePath("/contacts");
+  revalidatePath("/board");
+  revalidatePath("/ledger");
+  redirect("/contacts?erased=1");
 }
