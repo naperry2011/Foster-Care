@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Arizona DCS source workbooks (downloaded by hand; dcs.az.gov 403s fetchers)
+/az_docs

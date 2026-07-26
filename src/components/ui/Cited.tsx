@@ -4,8 +4,12 @@ export type Citation = {
   /** the document or page title */
   title: string;
   url: string;
-  /** ISO date the figure describes or was published */
-  asOf: string;
+  /**
+   * The date the figure describes. Null when the source itself carries no
+   * date — DCS's recruitment pages are undated, and saying so is the honest
+   * rendering. Provenance is still required; only the date may be absent.
+   */
+  asOf: string | null;
   /** true when the number is a forecast, not a measurement */
   isProjection?: boolean;
 };
@@ -46,7 +50,7 @@ export default function Cited({
         >
           {source.title}
         </a>{" "}
-        · as of {source.asOf}
+        · {source.asOf ? `as of ${source.asOf}` : "undated source"}
       </p>
     </div>
   );
