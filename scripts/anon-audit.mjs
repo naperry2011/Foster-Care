@@ -23,7 +23,14 @@ try {
   contactId = c.id;
 
   console.log("\n== Table reads as anon");
-  for (const t of ["agency", "app_user", "source", "contact", "touch", "stage_change", "outcome", "task", "send_log", "nurture_template"]) {
+  for (const t of [
+    "agency", "app_user", "source", "contact", "touch", "stage_change", "outcome",
+    "task", "send_log", "nurture_template",
+    // 0007-0009. az_* are public reference data, but "public" means "every
+    // signed-in agency", not "the internet" — the anon key ships in the browser.
+    "az_geo", "az_metric", "az_stat_source", "az_stat", "agency_target", "agency_county",
+    "journey_requirement", "journey", "journey_step", "agency_invite",
+  ]) {
     const { data, error } = await anon.from(t).select("*").limit(1);
     if (error || (data ?? []).length === 0) ok(`read ${t}`, error ? "denied" : "0 rows");
     else hole(`read ${t}`, `${data.length} row(s) readable by anyone`);
@@ -63,6 +70,43 @@ try {
   e6 && survived > 0
     ? ok("delete_demo_data", e6.message.slice(0, 40))
     : hole("delete_demo_data", "anyone can bulk-wipe an agency");
+
+  // az_stat is written only by the import script holding the service-role key.
+  // If a stranger can insert here, every figure on /arizona becomes untrustworthy.
+  const { error: azW } = await anon.from("az_stat").insert({
+    metric_id: "children_in_care", geo_id: "az", source_id: "dcs-learnmore",
+    period_label: `anon ${stamp}`, value: 1,
+  });
+  azW ? ok("insert az_stat", "denied") : hole("insert az_stat", "anyone can publish a state statistic");
+
+  const { error: tgtW } = await anon.from("agency_target").insert({
+    agency_id: agencyId, label: "anon goal", target_value: 1, unit: "homes",
+  });
+  tgtW ? ok("insert agency_target", "denied") : hole("insert agency_target", "anyone can write agency goals");
+
+  const { error: e7 } = await anon.rpc("start_journey", { p_contact_id: contactId });
+  const { count: jCount } = await admin.from("journey")
+    .select("*", { count: "exact", head: true }).eq("contact_id", contactId);
+  e7 && !jCount
+    ? ok("start_journey", e7.message.slice(0, 40))
+    : hole("start_journey", "anyone can open an onboarding record on any contact");
+
+  const { data: newAg, error: e8 } = await anon.rpc("create_agency", { p_name: `anon ${stamp}` });
+  if (!e8 && newAg) {
+    hole("create_agency", "anyone can create a tenant");
+    await admin.from("agency").delete().eq("id", newAg);
+  } else ok("create_agency", e8?.message.slice(0, 40) ?? "no-op");
+
+  const { data: invRow } = await admin.from("agency_invite")
+    .insert({ agency_id: agencyId, email: `audit.${stamp}@example.test` })
+    .select("token").single();
+  const { error: e9 } = await anon.rpc("accept_invite", { p_token: invRow.token });
+  e9 ? ok("accept_invite", e9.message.slice(0, 40)) : hole("accept_invite", "anyone can join an agency");
+
+  const { data: prev, error: e10 } = await anon.rpc("invite_preview", { p_token: invRow.token });
+  e10 || !(prev ?? []).length
+    ? ok("invite_preview", "denied")
+    : hole("invite_preview", "agency names enumerable by token");
 
   const { data: cap, error: e4 } = await anon.rpc("public_capture", { p_slug: `audit-${stamp}`, p_email: "visitor@example.test" });
   cap && !e4 ? ok("public_capture works (intended)") : hole("public_capture BROKEN", e4?.message);
