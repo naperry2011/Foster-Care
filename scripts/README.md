@@ -6,7 +6,14 @@ production agency's data** — they create and erase records.
 ```bash
 node scripts/smoke-test.mjs .env.local   # schema invariants + RLS isolation + erasure
 node scripts/cron-test.mjs  .env.local   # /api/cron/tick behavior (dev server must be running)
+node scripts/anon-audit.mjs .env.local   # what a stranger with the public anon key can reach
+node scripts/purge-test-agencies.mjs     # remove agencies left by test runs
 ```
+
+Run all three after any migration. `anon-audit` is the one to re-run after
+adding any function or RLS policy: Supabase's default privileges grant EXECUTE
+on every new public-schema function to `anon`, so a new RPC is exposed to the
+internet unless you revoke it by name.
 
 `smoke-test.mjs` stands up two throwaway agencies with real authenticated
 users and asserts the promises the product is built on: attribution is

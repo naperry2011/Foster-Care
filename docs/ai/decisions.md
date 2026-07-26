@@ -111,6 +111,8 @@ Keep append-only as the default, but allow DELETE when a one-shot GUC (`porchlig
 - Soft-delete / anonymize in place — keeps counts intact, but "we still hold your row" is a weak answer to an erasure request.
 - Dropping the DELETE triggers entirely — would allow quiet history deletion, which the attribution claim depends on.
 
+**Follow-up (0004):** the first cut let service_role bypass the ownership check by treating a null `auth.uid()` as trusted. Anonymous requests also have a null uid, so anyone with the public anon key could erase any contact. Erasure is now strictly a signed-in agency member; scripts sign in like everyone else. **Every new function in the public schema must be revoked from `anon` by name** — Supabase's default privileges grant EXECUTE to `anon` automatically, and `revoke ... from public` does not undo it. `scripts/anon-audit.mjs` checks this.
+
 ---
 
 ## ADR-006: Milestone-based plan; dashboards behind auth, storybook landing at `/`

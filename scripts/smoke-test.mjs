@@ -1,62 +1,23 @@
 // Porchlight live smoke test: exercises the real schema invariants as real
 // authenticated users against the live Supabase project.
-import { createClient } from "@supabase/supabase-js";
-import fs from "node:fs";
+import { loadEnv, makeClients, makeTenant, purgeAgency } from "./lib.mjs";
 
-const env = Object.fromEntries(
-  fs
-    .readFileSync(process.argv[2], "utf8")
-    .split("\n")
-    .filter((l) => l.includes("=") && !l.trim().startsWith("#"))
-    .map((l) => {
-      const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^"|"$/g, "")];
-    })
-);
-
-const URL = env.NEXT_PUBLIC_SUPABASE_URL;
-const ANON = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const SVC = env.SUPABASE_SERVICE_ROLE_KEY;
-
-const admin = createClient(URL, SVC, { auth: { persistSession: false } });
-const anon = createClient(URL, ANON, { auth: { persistSession: false } });
+const env = loadEnv(process.argv[2] ?? ".env.local");
+const { admin, anon } = makeClients(env);
 
 const results = [];
 const pass = (n, d = "") => { results.push(["PASS", n, d]); console.log(`  PASS  ${n}${d ? " — " + d : ""}`); };
 const fail = (n, d = "") => { results.push(["FAIL", n, d]); console.log(`  FAIL  ${n}${d ? " — " + d : ""}`); };
 const info = (m) => console.log(`\n== ${m}`);
 
-const PW = "Smoke-Test-" + Math.random().toString(36).slice(2, 10) + "!aA1";
 const stamp = Date.now();
-const made = { users: [], agencies: [] };
-
-async function makeTenant(label) {
-  const email = `smoke+${label}.${stamp}@porchlight.test`;
-  const { data: u, error: uErr } = await admin.auth.admin.createUser({
-    email, password: PW, email_confirm: true,
-  });
-  if (uErr) throw uErr;
-  made.users.push(u.user.id);
-
-  const { data: ag, error: aErr } = await admin
-    .from("agency").insert({ name: `Smoke ${label} ${stamp}` }).select("id").single();
-  if (aErr) throw aErr;
-  made.agencies.push(ag.id);
-
-  const { error: auErr } = await admin.from("app_user")
-    .insert({ id: u.user.id, agency_id: ag.id, full_name: `Smoke ${label}`, role: "director" });
-  if (auErr) throw auErr;
-
-  const client = createClient(URL, ANON, { auth: { persistSession: false } });
-  const { error: sErr } = await client.auth.signInWithPassword({ email, password: PW });
-  if (sErr) throw sErr;
-  return { email, agencyId: ag.id, userId: u.user.id, client };
-}
+const made = { agencies: [] };
 
 try {
   info("Setup: two tenants");
-  const A = await makeTenant("A");
-  const B = await makeTenant("B");
+  const A = await makeTenant(env, admin, "A");
+  const B = await makeTenant(env, admin, "B");
+  made.agencies.push(A.agencyId, B.agencyId);
   pass("two agencies + authenticated users created");
 
   // ---------- capture ----------
@@ -231,19 +192,7 @@ try {
 } catch (e) {
   fail("UNCAUGHT", e.message);
 } finally {
-  // cleanup — contacts must go through delete_contact(); append-only history
-  // rejects a plain DELETE by design
-  for (const ag of made.agencies) {
-    const { data: cs } = await admin.from("contact").select("id").eq("agency_id", ag);
-    for (const c of cs ?? []) {
-      const { error } = await admin.rpc("delete_contact", { p_contact_id: c.id });
-      if (error) console.log(`  ! could not erase ${c.id}: ${error.message}`);
-    }
-    await admin.from("source").delete().eq("agency_id", ag);
-    await admin.from("app_user").delete().eq("agency_id", ag);
-    await admin.from("agency").delete().eq("id", ag);
-  }
-  for (const u of made.users) await admin.auth.admin.deleteUser(u);
+  for (const ag of made.agencies) await purgeAgency(env, admin, ag);
   console.log("\ncleanup done");
 
   const failed = results.filter((r) => r[0] === "FAIL");

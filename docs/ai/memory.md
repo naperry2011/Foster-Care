@@ -16,14 +16,13 @@ Running history of what's been built and current state. Update after major chang
 - Deploys to Vercel without env vars (landing renders; middleware degrades gracefully)
 
 ### Known Issues
-- **Migration 0003 is written but NOT yet applied** — app code already calls the 4-arg `set_contact_stage`, so stage moves fail until it runs
-- Leftover test agencies in the DB ("Smoke A…", "Cron Smoke…") — cleanup needs 0003's `delete_contact()`
+- **Migration 0004 is written but NOT yet applied** — until it runs, anyone holding the public anon key can erase any contact via `delete_contact()` (0003 shipped with a null-`auth.uid()` bypass intended for service_role). 0003 itself is applied and working.
 - No Resend key yet, so nurture emails are skipped (by design, not an error)
 - Playwright e2e and the throttled-3G capture-page check still unwritten
 - Browser-pane screenshots time out on this machine (pages render fine; tooling quirk)
 
 ### In Progress
-- M4-A: apply migration 0003, re-run both test scripts, purge test agencies.
+- M4-A: apply migration 0004, then re-run all three scripts (expect 32/9/17 green).
 
 ## Implementation History
 
@@ -54,5 +53,7 @@ Next.js 15 App Router monolith on Vercel; Supabase (Postgres + RLS + Auth) as th
 - A dialog the user can dismiss is not a required field. `prompt()` returning null silently produced exactly the outcome the product exists to prevent.
 - Claim-before-send gives idempotency, but the claim must be *released* on failure or a transient outage becomes permanent data loss.
 - Building against placeholder credentials hides whole classes of defects. The first hour against a real database found four bugs; the previous eight hours of building found none.
+- In Supabase, **every new function in the public schema is granted to `anon` by default**, and `revoke ... from public` does not remove it — revoke `anon` by name. A fix (0003's erasure RPC) shipped a worse hole than the bug it closed, and only a test caught it.
+- "Trust a null `auth.uid()` so system scripts can bypass" is never safe: anonymous callers have a null uid too. Give scripts a real identity instead.
 - create-next-app refuses capitalized dir names ("Foster-Care"); scaffold in a temp dir and move.
 - Console noise on deployed sites is usually browser extensions (Affirm, wallets), not the app.

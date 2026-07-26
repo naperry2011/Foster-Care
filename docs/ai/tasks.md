@@ -17,13 +17,16 @@ Active work. Update as items are completed and new work is identified.
 - [x] Perry: create Supabase project; run migrations 0001 + 0002; fill `.env.local` — 2026-07-26
 - [x] Full live run: sign in → onboarding → event → QR capture → stage moves via UI → board/contacts/tasks/ledger → cron tick — 2026-07-26
 - [x] Fix what the first live run surfaced: undeletable contacts, dateless waiting room, unretryable failed sends, ledger copy bug — 2026-07-26
-- [ ] **Perry: run `supabase/migrations/0003_erasure.sql` in the SQL editor** — app already calls the new 4-arg `set_contact_stage`, so stage moves break until this lands
-- [ ] Re-run `node scripts/smoke-test.mjs .env.local` (expect 30 green) and purge leftover test agencies
+- [x] Perry: run `0003_erasure.sql` — applied, verified — 2026-07-26
+- [x] Purge leftover test agencies (`scripts/purge-test-agencies.mjs`) — 2026-07-26
+- [ ] **Perry: run `supabase/migrations/0004_erasure_authz_fix.sql`** — SECURITY: until then anyone with the public anon key can erase any contact
+- [ ] Re-run all three scripts after 0004 (expect smoke 32, cron 9, anon-audit 0 exposed)
 
 **Phase B — Prove the invariants**
 - [x] RLS isolation test: two agencies, zero cross-visibility — `scripts/smoke-test.mjs` — 2026-07-26
 - [x] Send-layer tests: consent block, opt-out irreversible, dedupe, no-send-to-unconsented — 2026-07-26
 - [x] Cron behavior tests: wake-ups, cold flags, once-only — `scripts/cron-test.mjs` — 2026-07-26
+- [x] Anonymous attack-surface audit — `scripts/anon-audit.mjs`; found the anon erasure hole — 2026-07-26
 - [ ] Playwright e2e capture flow; throttled-network check on `/c/[slug]` (<1s) — medium
 - [ ] Wire both scripts into CI once a hosted test project exists — small
 

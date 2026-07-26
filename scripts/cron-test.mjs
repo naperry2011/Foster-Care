@@ -1,14 +1,9 @@
 // Exercises /api/cron/tick: wake-ups, cold flags, nurture due-ness.
 // Seeds backdated data (which the UI can't create), hits the live endpoint, asserts, cleans up.
-import { createClient } from "@supabase/supabase-js";
-import fs from "node:fs";
+import { loadEnv, makeClients, purgeAgency } from "./lib.mjs";
 
-const env = Object.fromEntries(
-  fs.readFileSync(process.argv[2], "utf8").split("\n")
-    .filter((l) => l.includes("=") && !l.trim().startsWith("#"))
-    .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^"|"$/g, "")]; })
-);
-const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+const env = loadEnv(process.argv[2] ?? ".env.local");
+const { admin } = makeClients(env);
 
 const results = [];
 const pass = (n, d = "") => { results.push(["PASS", n, d]); console.log(`  PASS  ${n}${d ? " — " + d : ""}`); };
@@ -111,16 +106,7 @@ try {
 } catch (e) {
   fail("UNCAUGHT", e.stack?.split("\n")[0]);
 } finally {
-  if (agencyId) {
-    const { data: cs } = await admin.from("contact").select("id").eq("agency_id", agencyId);
-    for (const c of cs ?? []) {
-      const { error } = await admin.rpc("delete_contact", { p_contact_id: c.id });
-      if (error) console.log(`  ! could not erase ${c.id}: ${error.message}`);
-    }
-    await admin.from("source").delete().eq("agency_id", agencyId);
-    await admin.from("app_user").delete().eq("agency_id", agencyId);
-    await admin.from("agency").delete().eq("id", agencyId);
-  }
+  if (agencyId) await purgeAgency(env, admin, agencyId);
   console.log("\ncleanup done");
   const failed = results.filter((r) => r[0] === "FAIL");
   console.log(`${results.filter((r) => r[0] === "PASS").length} passed, ${failed.length} failed`);
