@@ -107,6 +107,40 @@ export async function completeTask(formData: FormData) {
   revalidatePath("/tasks");
 }
 
+// Build the family's checklist from the effective catalog. The RPC is
+// idempotent, so a double-click can't reset somebody's progress.
+export async function startJourney(formData: FormData) {
+  await requireUser();
+  const supabase = await createClient();
+  const id = String(formData.get("contact_id"));
+
+  const { error } = await supabase.rpc("start_journey", { p_contact_id: id });
+  if (error) throw error;
+  revalidatePath(`/contacts/${id}`);
+}
+
+// Tick or un-tick one requirement. Completing the last one only updates the
+// journey — a family is licensed by Arizona, not by this checkbox, so the UI
+// asks rather than acts.
+export async function toggleJourneyStep(formData: FormData) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const stepId = String(formData.get("step_id"));
+  const contactId = String(formData.get("contact_id"));
+  const done = String(formData.get("done")) === "1";
+
+  const { error } = await supabase
+    .from("journey_step")
+    .update({
+      completed_on: done ? new Date().toISOString().slice(0, 10) : null,
+      completed_by_user_id: done ? user.id : null,
+    })
+    .eq("id", stepId);
+  if (error) throw error;
+  revalidatePath(`/contacts/${contactId}`);
+}
+
 // Erasure — the whole person, not a soft delete. Goes through delete_contact()
 // so the append-only history is removed under its one audited exception.
 export async function eraseContact(formData: FormData) {

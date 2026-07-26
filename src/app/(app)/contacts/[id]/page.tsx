@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import StageSelect from "@/components/StageSelect";
 import ContactTimeline from "@/components/ContactTimeline";
 import DangerZone from "@/components/DangerZone";
+import JourneyPanel, { type JourneyStep } from "@/components/JourneyPanel";
 import { createClient } from "@/lib/supabase/server";
 import { STAGE_LABELS, type Stage } from "@/lib/stages";
 import { buildTimeline, relativeDays, TOUCH_CHANNEL_LABELS } from "@/lib/timeline";
@@ -50,6 +51,25 @@ export default async function ContactPage({
         .select("id, kind, title, created_at, done_at")
         .eq("contact_id", id),
     ]);
+
+  // Onboarding checklist. `detail` is read live from the catalog rather than
+  // from the snapshot, so improving the guidance helps families already in
+  // progress without rewriting what was asked of them.
+  const { data: journey } = await supabase
+    .from("journey")
+    .select("id, started_on, completed_on, journey_step(id, requirement_code, step_no, label, category, completed_on)")
+    .eq("contact_id", id)
+    .maybeSingle();
+
+  const { data: requirements } = await supabase
+    .from("journey_requirement")
+    .select("code, detail")
+    .eq("active", true);
+  const details = new Map(
+    (requirements ?? [])
+      .filter((r) => r.detail)
+      .map((r) => [r.code as string, r.detail as string])
+  );
 
   const entries = buildTimeline({
     touches: touches ?? [],
@@ -171,6 +191,26 @@ export default async function ContactPage({
             ))}
           </ul>
         </section>
+      )}
+
+      {/* Onboarding only makes sense once a family has actually inquired —
+          offering it earlier would turn a warm conversation into paperwork. */}
+      {(journey || contact.stage === "inquiry" || contact.stage === "licensed") && (
+        <JourneyPanel
+          contactId={contact.id}
+          stage={contact.stage as Stage}
+          journey={
+            journey
+              ? {
+                  id: journey.id,
+                  started_on: journey.started_on,
+                  completed_on: journey.completed_on,
+                }
+              : null
+          }
+          steps={(journey?.journey_step ?? []) as JourneyStep[]}
+          details={details}
+        />
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] mt-8 items-start">
