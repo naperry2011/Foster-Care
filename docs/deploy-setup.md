@@ -41,8 +41,17 @@ working — they should differ.
 
 Vercel → project → **Settings → Domains** → add `porchlightfostercare.org`.
 
-Add `www.porchlightfostercare.org` too and let Vercel redirect it to the apex.
-People will type it.
+Add `www.porchlightfostercare.org` too, so people who type "www" still arrive.
+
+**Whichever one you set as Vercel's primary domain must be the one in
+`NEXT_PUBLIC_APP_URL`.** The other redirects to it, and that redirect lands on
+the capture page — the single page with a sub-second budget on a bad connection.
+Measured on the live site: apex → www costs an extra round trip, 0.56s against
+0.26s direct. Harmless on wifi, a real cost on 3G in a church hall, on exactly
+the path a scanned QR code takes.
+
+Vercel → Settings → Domains shows which is primary. Point `NEXT_PUBLIC_APP_URL`
+at that one (and redeploy if you change it — the value is compiled in).
 
 **Do not copy DNS values out of a blog post.** Vercel's own docs say the
 commonly quoted `76.76.21.21` and `cname.vercel-dns.com` are *general* values
@@ -104,6 +113,22 @@ build cache" so it genuinely rebuilds.
 ---
 
 ## 6. Verify
+
+Verified live on 2026-07-26: DNS resolving to Vercel with a valid certificate
+and the Namecheap parking records gone; `NEXT_PUBLIC_APP_URL` compiled into the
+build (no `localhost:3000` anywhere in the served HTML); a signed-out request to
+`/arizona` redirecting to `/login?next=%2Farizona`; `/api/cron/tick` returning
+401 both unauthenticated **and** with the old dev secret, which is how we know
+the production `CRON_SECRET` was genuinely rotated; and `/u/[id]` returning
+different pages for a real and a bogus contact id, which is how we know the
+deployed server really reaches Supabase.
+
+Note on that last one: `/c/[slug]` is *not* a useful connectivity test. It does
+no database lookup on load — it renders a static form and validates the slug
+inside `public_capture()` on submit, which is how it stays fast. A nonsense slug
+returns 200 exactly like a real one.
+
+Still unverified, because it needs a human inbox: magic-link sign-in.
 
 In this order, because each depends on the last:
 
