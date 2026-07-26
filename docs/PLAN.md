@@ -76,6 +76,33 @@ Porchlight is a pre-inquiry recruitment platform for Arizona private foster-care
 - File Twilio A2P 10DLC when a business entity exists (4–8 wk lead time); then add SMS to the send layer + text-in keyword capture (v1.1).
 - Deferred by design: Binti API handoff (v1.1, when partner asks), Spanish-language capture/nurture (v1.1 — design copy strings for i18n now), retention pulse & multi-agency rollup (v2).
 
+## Milestone 5 — Client-ready
+**Ship: a platform an Arizona recruitment director sees as a product, not a prototype.**
+
+Added after M0–M3 shipped. The MVP worked; it did not yet *look* finished, and
+it could not argue for itself in a room before the agency's own data existed.
+
+- App shell, sign-out, settings, error/loading states — and the bug sweep that
+  came with driving every screen (0005).
+- Contact detail with a merged interaction timeline. The `touch` rows written
+  since M2 had never been displayed anywhere.
+- A shared design vocabulary in `src/components/ui/` so the signed-in app reads
+  like the landing page. `Cited` cannot render a public figure without its
+  source — provenance enforced by the type system (ADR-011).
+- A demo agency in its own tenant: 18 months of invented history, rebuildable
+  identically in one click, unemailable by construction (0006, ADR-010).
+- **`/arizona`** — the state's own numbers, each with publisher, link and
+  as-of date, plus the agency's goals in a physically separate table (0007,
+  ADR-009). Ingest is a human running a script twice a year; `dcs.az.gov`
+  refuses every server-side fetcher.
+- **Onboarding progress** — a parallel `journey` record for a family at
+  `inquiry`, prompting but never performing "mark licensed" (0008, ADR-008).
+- **Teammates** — invitations, and both join paths moved off the service-role
+  key onto security-definer RPCs (0009, ADR-012).
+
+**Done means:** five suites green against the live database, and a demo that
+tells the whole story from a cold start. Merged to `main` 2026-07-26.
+
 ---
 
 ## Deliberately NOT building (spec §02)
