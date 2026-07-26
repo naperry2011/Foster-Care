@@ -57,6 +57,13 @@ try {
     ? ok("quick_add_contact", e5.message.slice(0, 40))
     : hole("quick_add_contact", "anyone can create contacts in any agency");
 
+  const { error: e6 } = await anon.rpc("delete_demo_data", { p_agency_id: agencyId });
+  const { count: survived } = await admin.from("contact")
+    .select("*", { count: "exact", head: true }).eq("agency_id", agencyId);
+  e6 && survived > 0
+    ? ok("delete_demo_data", e6.message.slice(0, 40))
+    : hole("delete_demo_data", "anyone can bulk-wipe an agency");
+
   const { data: cap, error: e4 } = await anon.rpc("public_capture", { p_slug: `audit-${stamp}`, p_email: "visitor@example.test" });
   cap && !e4 ? ok("public_capture works (intended)") : hole("public_capture BROKEN", e4?.message);
 } catch (e) {

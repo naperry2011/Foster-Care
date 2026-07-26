@@ -48,6 +48,15 @@ export default function AppShell({
           />
         </div>
       </header>
+      {user.isDemo && (
+        <div className="bg-clay text-white text-center text-sm py-2 px-4 print:hidden">
+          <strong>Demo data</strong> — these are invented families, not a real
+          agency. No message is ever sent from here.{" "}
+          <Link href="/settings/demo" className="underline">
+            Manage demo data
+          </Link>
+        </div>
+      )}
       <div className="flex-1">{children}</div>
     </div>
   );
