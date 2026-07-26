@@ -30,6 +30,7 @@ export default async function Home() {
     { data: tasks },
     { count: teammates },
     { count: myCounties },
+    { count: invitesSent },
   ] = await Promise.all([
     supabase.from("contact").select("*", { count: "exact", head: true }),
     supabase.from("source").select("*", { count: "exact", head: true }),
@@ -46,6 +47,10 @@ export default async function Home() {
       .limit(5),
     supabase.from("app_user").select("*", { count: "exact", head: true }),
     supabase.from("agency_county").select("*", { count: "exact", head: true }),
+    supabase
+      .from("agency_invite")
+      .select("*", { count: "exact", head: true })
+      .is("revoked_at", null),
   ]);
 
   // Ticks itself off what already exists; hides itself once all five are done.
@@ -76,7 +81,10 @@ export default async function Home() {
     },
     {
       label: "Invite a teammate",
-      done: (teammates ?? 0) > 1,
+      // Sending the invitation is the step. Whether the colleague gets round to
+      // accepting is their business, and leaving the item unticked until they
+      // do would nag the wrong person.
+      done: (teammates ?? 0) > 1 || (invitesSent ?? 0) > 0,
       href: "/settings/team",
       hint: "Recruitment outlives any one recruiter.",
     },

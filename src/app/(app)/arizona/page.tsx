@@ -16,7 +16,8 @@ import {
 } from "@/lib/arizona";
 import { setCounties, addTarget, deleteTarget } from "./actions";
 
-export const metadata = { title: "Arizona · Porchlight" };
+// The root layout's title template already appends " · Porchlight".
+export const metadata = { title: "Arizona" };
 
 export default async function ArizonaPage() {
   const user = await requireUser();
@@ -374,8 +375,9 @@ export default async function ArizonaPage() {
       <p className="text-xs text-muted mt-10 max-w-3xl leading-relaxed">
         Figures are loaded from Arizona DCS workbooks by hand twice a year —
         there is no API and no open-data feed. Goals belong to{" "}
-        {user.agencyName} and are stored separately from the state&rsquo;s
-        numbers, in a table the import script cannot write to.
+        {user.agencyName}{" "}
+        and are stored separately from the state&rsquo;s numbers, in a table the
+        import script cannot write to.
       </p>
     </main>
   );

@@ -271,6 +271,59 @@ export async function seedDemoAgency(
     },
   ]);
 
+  // ---- Arizona: counties served, and a goal of the agency's own ----
+  // Cleared first so a rebuild is identical rather than cumulative. These do
+  // not hang off a contact, so delete_demo_data() does not reach them.
+  await supabase.from("agency_county").delete().eq("agency_id", agencyId);
+  await supabase.from("agency_target").delete().eq("agency_id", agencyId);
+  await supabase.from("agency_invite").delete().eq("agency_id", agencyId);
+  await supabase.from("agency_county").insert(
+    ["az-maricopa", "az-pinal", "az-yavapai"].map((geo_id) => ({
+      agency_id: agencyId,
+      geo_id,
+    }))
+  );
+  await supabase.from("agency_target").insert({
+    agency_id: agencyId,
+    label: "licensed homes this year",
+    target_value: 18,
+    unit: "homes",
+    due_on: dateOnly(-340),
+    note: "Twelve is what we managed last year. Eighteen is what the wait-list needs.",
+    created_by_user_id: userId,
+  });
+
+  // A colleague who has been asked but hasn't signed in yet — the state a real
+  // agency is in for a day or two, and enough to tick the setup checklist.
+  await supabase.from("agency_invite").insert({
+    agency_id: agencyId,
+    email: "rosa@sonoranfamily.demo",
+    role: "recruiter",
+    invited_by_user_id: userId,
+  });
+
+  // ---- a few families mid-onboarding ----
+  // Partly ticked, deliberately: a finished checklist shows the "mark
+  // licensed?" prompt, which is the least representative state to demo.
+  const inquiryIds = contactIds.filter((_, i) => plans[i].stage === "inquiry").slice(0, 3);
+  for (const [n, cid] of inquiryIds.entries()) {
+    const { data: jid } = await supabase.rpc("start_journey", { p_contact_id: cid });
+    if (!jid) continue;
+    const { data: steps } = await supabase
+      .from("journey_step")
+      .select("id")
+      .eq("journey_id", jid)
+      .order("step_no");
+    const through = [7, 4, 2][n] ?? 3;
+    const ids = (steps ?? []).slice(0, through).map((s) => s.id);
+    if (ids.length) {
+      await supabase
+        .from("journey_step")
+        .update({ completed_on: dateOnly(30 + n * 10), completed_by_user_id: userId })
+        .in("id", ids);
+    }
+  }
+
   await supabase
     .from("agency")
     .update({ demo_seeded_at: new Date().toISOString() })

@@ -8,7 +8,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { inviteTeammate, revokeInvite } from "./actions";
 
-export const metadata = { title: "Team · Porchlight" };
+// The root layout's title template already appends " · Porchlight".
+export const metadata = { title: "Your team" };
 
 export default async function TeamPage() {
   const user = await requireUser();

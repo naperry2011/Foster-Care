@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata = { title: "Join · Porchlight" };
+// The root layout's title template already appends " · Porchlight".
+export const metadata = { title: "Join" };
 
 // The other side of /settings/team. The invitee has no agency yet, so RLS
 // hides agency_invite from them entirely — everything here goes through the
