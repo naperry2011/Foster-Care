@@ -47,6 +47,16 @@ try {
   (still ?? []).length === 1
     ? ok("delete_contact", e3 ? e3.message.slice(0, 40) : "no-op")
     : hole("delete_contact", "ANYONE CAN ERASE ANY CONTACT");
+  const { error: e5 } = await anon.rpc("quick_add_contact", {
+    p_source_id: src.id, p_email: "anon-quickadd@example.test",
+  });
+  const { count: qaCount } = await admin.from("contact")
+    .select("*", { count: "exact", head: true })
+    .eq("email", "anon-quickadd@example.test");
+  e5 && qaCount === 0
+    ? ok("quick_add_contact", e5.message.slice(0, 40))
+    : hole("quick_add_contact", "anyone can create contacts in any agency");
+
   const { data: cap, error: e4 } = await anon.rpc("public_capture", { p_slug: `audit-${stamp}`, p_email: "visitor@example.test" });
   cap && !e4 ? ok("public_capture works (intended)") : hole("public_capture BROKEN", e4?.message);
 } catch (e) {
