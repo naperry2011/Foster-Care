@@ -1,5 +1,7 @@
 import Link from "next/link";
 import PrintButton from "@/components/PrintButton";
+import PageHeader from "@/components/ui/PageHeader";
+import StatTile from "@/components/ui/StatTile";
 import { createClient } from "@/lib/supabase/server";
 import { SOURCE_KIND_LABELS, type SourceKind } from "@/lib/stages";
 
@@ -84,41 +86,37 @@ export default async function LedgerPage() {
   return (
     <>
       <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">The attribution ledger</h1>
-            <p className="text-sm text-muted mt-1">
-              Which of the things you do produce homes — traced from first touch
-              to license.
-            </p>
-          </div>
-          <div className="flex gap-3 items-center">
-            <Link
-              href="/ledger/backfill"
-              className="text-sm rounded-full border border-rule px-4 py-1.5 hover:bg-paper-2 print:hidden"
-            >
-              Backfill a past home
-            </Link>
-            <PrintButton />
-          </div>
-        </div>
+        <PageHeader
+          eyebrow="which Saturdays became homes"
+          title="The attribution ledger"
+          description="Everything else in Porchlight is plumbing for this page. It answers the one question your funding depends on."
+          actions={
+            <>
+              <Link
+                href="/ledger/backfill"
+                className="text-sm rounded-full border border-rule px-4 py-2 hover:bg-paper-2 print:hidden"
+              >
+                Backfill a past home
+              </Link>
+              <PrintButton />
+            </>
+          }
+        />
 
         {/* leading indicators — the numbers that exist before the lag closes */}
-        <div className="grid gap-4 sm:grid-cols-4 mt-6">
-          {[
-            { label: "Captured", value: totals.captured },
-            { label: "Still warm", value: totals.warm },
-            { label: "Inquiries", value: totals.inquiries },
-            { label: "Licensed homes", value: totals.licensed },
-          ].map((s) => (
-            <div key={s.label} className="rounded-lg border border-rule bg-white p-5">
-              <div className="text-3xl font-semibold">{s.value}</div>
-              <div className="text-sm text-muted mt-1">{s.label}</div>
-            </div>
-          ))}
+        <div className="grid gap-4 sm:grid-cols-4 mt-8">
+          <StatTile value={totals.captured} label="Captured" />
+          <StatTile value={totals.warm} label="Still warm" tone="porch" />
+          <StatTile value={totals.inquiries} label="Inquiries" />
+          <StatTile
+            value={totals.licensed}
+            label="Licensed homes"
+            tone="sage"
+            footnote="the only number you're paid on"
+          />
         </div>
 
-        <div className="mt-6 overflow-x-auto rounded-lg border border-rule bg-white">
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-rule bg-white">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-rule">
@@ -164,8 +162,21 @@ export default async function LedgerPage() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted">
-                    No sources yet — the ledger fills in as you capture and license.
+                  <td colSpan={7} className="px-4 py-10 text-center">
+                    <p className="font-hand text-2xl text-ink/70">
+                      the ledger is still empty
+                    </p>
+                    <p className="text-sm text-muted mt-1">
+                      It fills in as you capture people and confirm the homes
+                      they become. You can start it with history you already
+                      have.
+                    </p>
+                    <Link
+                      href="/ledger/backfill"
+                      className="inline-block mt-4 rounded-full bg-porch text-night font-semibold px-5 py-2.5 text-sm hover:brightness-105"
+                    >
+                      Backfill a home you licensed
+                    </Link>
                   </td>
                 </tr>
               )}
@@ -174,7 +185,7 @@ export default async function LedgerPage() {
         </div>
 
         {everNotYet.size > 0 && (
-          <div className="mt-6 rounded-lg border-l-4 border-sage bg-sage-tint p-5 text-sm">
+          <div className="mt-6 rounded-2xl border-l-4 border-sage bg-sage-tint p-5 text-sm">
             <strong>Waiting-room yield:</strong> {notYetLicensed} of{" "}
             {everNotYet.size}{" "}
             people who once said &ldquo;not yet&rdquo; went on to become

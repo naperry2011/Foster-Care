@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Landing from "@/components/Landing";
 import AppShell from "@/components/AppShell";
+import StatTile from "@/components/ui/StatTile";
+import EmptyState from "@/components/ui/EmptyState";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -72,38 +74,24 @@ export default async function Home() {
         </h1>
 
         {isEmpty ? (
-          <div className="mt-8 rounded-2xl border-2 border-dashed border-rule bg-butter p-10 text-center">
-            <h2 className="font-display text-2xl font-semibold">
-              Let&apos;s light the porch.
-            </h2>
-            <p className="mt-2 text-ink/70 max-w-md mx-auto">
-              Everything starts with one event. Create it, get a QR code, and
-              the next person who stops at your table stops being a memory.
-            </p>
-            <Link
-              href="/events"
-              className="inline-block mt-6 rounded-full bg-porch text-night font-semibold px-7 py-3.5 hover:brightness-105"
-            >
-              Create your first event
-            </Link>
+          <div className="mt-8">
+            <EmptyState
+              title="Let's light the porch."
+              body="Everything starts with one event. Create it, get a QR code, and the next person who stops at your table stops being a memory."
+              ctaLabel="Create your first event"
+              ctaHref="/events"
+            />
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-8">
             {stats.map((s) => (
-              <Link
+              <StatTile
                 key={s.label}
+                value={s.value}
+                label={s.label}
                 href={s.href}
-                className={`rounded-2xl border p-6 transition-shadow hover:shadow-[0_14px_30px_-18px_rgba(60,47,42,.45)] ${
-                  s.tone === "porch"
-                    ? "border-porch/50 bg-butter"
-                    : s.tone === "sage"
-                      ? "border-sage/30 bg-sage-tint"
-                      : "border-rule bg-white"
-                }`}
-              >
-                <div className="font-display text-4xl font-semibold">{s.value}</div>
-                <div className="text-sm text-muted mt-1">{s.label}</div>
-              </Link>
+                tone={s.tone ?? "plain"}
+              />
             ))}
           </div>
         )}

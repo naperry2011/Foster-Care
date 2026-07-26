@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
@@ -33,11 +34,12 @@ export default async function TasksPage() {
   return (
     <>
       <main className="max-w-5xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-semibold">Tasks</h1>
-        <p className="text-sm text-muted mt-1">
-          Wake-ups, replies, and cold flags — the moments a human should step in.
-        </p>
-        <ul className="mt-6 divide-y divide-rule rounded-lg border border-rule bg-white">
+        <PageHeader
+          eyebrow="the moments a human should step in"
+          title="Tasks"
+          description="Wake-ups, replies, and people who've gone quiet. The machine holds everyone gently; these are the ones who need you."
+        />
+        <ul className="mt-8 divide-y divide-rule rounded-2xl border border-rule bg-white overflow-hidden">
           {(tasks ?? []).map((t) => (
             <li key={t.id} className="px-5 py-4 flex items-center justify-between gap-4">
               <div>
@@ -69,8 +71,13 @@ export default async function TasksPage() {
             </li>
           ))}
           {(tasks ?? []).length === 0 && (
-            <li className="px-5 py-8 text-center text-muted">
-              Nothing needs a human right now.
+            <li className="px-5 py-10 text-center">
+              <p className="font-hand text-2xl text-ink/70">
+                nothing needs a human right now
+              </p>
+              <p className="text-sm text-muted mt-1">
+                The waiting room is doing its job quietly.
+              </p>
             </li>
           )}
         </ul>

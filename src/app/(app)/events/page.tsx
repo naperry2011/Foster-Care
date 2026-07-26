@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
 import { createClient } from "@/lib/supabase/server";
 import { SOURCE_KINDS, SOURCE_KIND_LABELS, type SourceKind } from "@/lib/stages";
 import { createSource } from "./actions";
@@ -14,11 +15,15 @@ export default async function EventsPage() {
   return (
     <>
       <main className="max-w-5xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-semibold">Sources &amp; events</h1>
+        <PageHeader
+          eyebrow="every Saturday you spend"
+          title="Sources &amp; events"
+          description="A church fair, a partner, an ad. Name it here and every person you meet there carries that origin forever."
+        />
 
         <form
           action={createSource}
-          className="mt-6 rounded-lg border border-rule bg-white p-5 grid gap-3 sm:grid-cols-2"
+          className="mt-8 rounded-2xl border border-rule bg-white p-5 grid gap-3 sm:grid-cols-2"
         >
           <input
             name="name"
@@ -73,7 +78,7 @@ export default async function EventsPage() {
           </button>
         </form>
 
-        <ul className="mt-8 divide-y divide-rule rounded-lg border border-rule bg-white">
+        <ul className="mt-8 divide-y divide-rule rounded-2xl border border-rule bg-white overflow-hidden">
           {(sources ?? []).map((s) => {
             const captured = (s.contact as unknown as { count: number }[])?.[0]?.count ?? 0;
             return (
@@ -98,8 +103,14 @@ export default async function EventsPage() {
             );
           })}
           {(sources ?? []).length === 0 && (
-            <li className="px-5 py-8 text-center text-muted">
-              No sources yet. Create your first event above.
+            <li className="px-5 py-10 text-center">
+              <p className="font-hand text-2xl text-ink/70">
+                no sources yet
+              </p>
+              <p className="text-sm text-muted mt-1">
+                Name the first place you&apos;ll show up. Everything else
+                follows from it.
+              </p>
             </li>
           )}
         </ul>

@@ -70,7 +70,8 @@ export default async function BackfillPage() {
   return (
     <>
       <main className="max-w-xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-semibold">Backfill a licensed home</h1>
+        <p className="font-hand text-2xl text-clay">history you already have</p>
+        <h1 className="font-display text-3xl font-semibold mt-1">Backfill a licensed home</h1>
         <p className="text-sm text-muted mt-1">
           Add a family you already licensed so the ledger starts with real
           outcomes. Best guess on the source is fine.

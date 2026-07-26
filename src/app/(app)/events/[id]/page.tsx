@@ -37,14 +37,19 @@ export default async function EventPage({
   return (
     <>
       <main className="max-w-5xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-semibold">{source.name}</h1>
+        <Link href="/events" className="text-sm text-sage hover:underline">
+          ← All sources
+        </Link>
+        <h1 className="font-display text-3xl font-semibold mt-3">
+          {source.name}
+        </h1>
         <p className="text-muted text-sm mt-1">
           {source.occurred_on ?? ""} {source.location ? `· ${source.location}` : ""}
         </p>
 
         <div className="grid gap-6 lg:grid-cols-2 mt-8">
-          <div className="rounded-lg border border-rule bg-white p-6 text-center">
-            <h2 className="font-semibold mb-4">Capture QR code</h2>
+          <div className="rounded-2xl border border-rule bg-white p-6 text-center">
+            <h2 className="font-display text-lg font-semibold mb-4">Capture QR code</h2>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrDataUrl}
@@ -62,8 +67,8 @@ export default async function EventPage({
             </p>
           </div>
 
-          <div className="rounded-lg border border-rule bg-white p-6">
-            <h2 className="font-semibold mb-4">Quick-add (you type, they talk)</h2>
+          <div className="rounded-2xl border border-rule bg-white p-6">
+            <h2 className="font-display text-lg font-semibold mb-4">Quick-add (you type, they talk)</h2>
             <form action={quickAddContact} className="space-y-3">
               <input type="hidden" name="source_id" value={source.id} />
               <input
@@ -97,10 +102,10 @@ export default async function EventPage({
           </div>
         </div>
 
-        <h2 className="font-semibold mt-10 mb-3">
+        <h2 className="font-display text-xl font-semibold mt-10 mb-3">
           Captured here ({contacts?.length ?? 0})
         </h2>
-        <ul className="divide-y divide-rule rounded-lg border border-rule bg-white">
+        <ul className="divide-y divide-rule rounded-2xl border border-rule bg-white overflow-hidden">
           {(contacts ?? []).map((c) => (
             <li key={c.id} className="px-5 py-3 flex items-center justify-between gap-3">
               <div>
@@ -120,8 +125,9 @@ export default async function EventPage({
             </li>
           ))}
           {(contacts ?? []).length === 0 && (
-            <li className="px-5 py-6 text-center text-muted text-sm">
-              Nobody captured yet.
+            <li className="px-5 py-8 text-center">
+              <p className="font-hand text-xl text-ink/70">nobody captured yet</p>
+              <p className="text-xs text-muted mt-1">Scan the code with your own phone to try it.</p>
             </li>
           )}
         </ul>

@@ -1,3 +1,4 @@
+import PageHeader from "@/components/ui/PageHeader";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { makeSlug } from "@/lib/slug";
@@ -39,13 +40,13 @@ export default async function AmbassadorsPage() {
   return (
     <>
       <main className="max-w-5xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-semibold">Ambassadors</h1>
-        <p className="text-sm text-muted mt-1">
-          Your best recruiters already foster. Give each one a personal link and
-          finally measure word of mouth.
-        </p>
+        <PageHeader
+          eyebrow="families invite families"
+          title="Ambassadors"
+          description="Your best recruiters already foster. Give each one a personal link and finally measure the word of mouth nobody has ever been able to count."
+        />
 
-        <form action={createAmbassador} className="mt-6 flex gap-3">
+        <form action={createAmbassador} className="mt-8 flex gap-3">
           <input
             name="name"
             required
@@ -57,7 +58,7 @@ export default async function AmbassadorsPage() {
           </button>
         </form>
 
-        <ul className="mt-8 divide-y divide-rule rounded-lg border border-rule bg-white">
+        <ul className="mt-8 divide-y divide-rule rounded-2xl border border-rule bg-white overflow-hidden">
           {(ambassadors ?? []).map((a) => {
             const stages = (a.contact as unknown as { stage: string }[]) ?? [];
             const reached = stages.length;
@@ -93,8 +94,13 @@ export default async function AmbassadorsPage() {
             );
           })}
           {(ambassadors ?? []).length === 0 && (
-            <li className="px-5 py-8 text-center text-muted">
-              No ambassadors yet. Create the first link above.
+            <li className="px-5 py-10 text-center">
+              <p className="font-hand text-2xl text-ink/70">
+                no ambassadors yet
+              </p>
+              <p className="text-sm text-muted mt-1">
+                Start with the foster parent who already tells everyone.
+              </p>
             </li>
           )}
         </ul>
