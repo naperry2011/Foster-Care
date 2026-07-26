@@ -19,8 +19,9 @@ Active work. Update as items are completed and new work is identified.
 - [x] Fix what the first live run surfaced: undeletable contacts, dateless waiting room, unretryable failed sends, ledger copy bug — 2026-07-26
 - [x] Perry: run `0003_erasure.sql` — applied, verified — 2026-07-26
 - [x] Purge leftover test agencies (`scripts/purge-test-agencies.mjs`) — 2026-07-26
-- [ ] **Perry: run `supabase/migrations/0004_erasure_authz_fix.sql`** — SECURITY: until then anyone with the public anon key can erase any contact
-- [ ] Re-run all three scripts after 0004 (expect smoke 32, cron 9, anon-audit 0 exposed)
+- [x] Perry: run `0004_erasure_authz_fix.sql` — applied; anon erasure hole closed — 2026-07-26
+- [x] All three suites green: smoke 32/32, cron 9/9, anon-audit 17 safe / 0 exposed — 2026-07-26
+- [x] UI re-verified live: stage moves on the new 4-arg RPC, inline wake-up picker stores both custom and default dates — 2026-07-26
 
 **Phase B — Prove the invariants**
 - [x] RLS isolation test: two agencies, zero cross-visibility — `scripts/smoke-test.mjs` — 2026-07-26
@@ -30,7 +31,7 @@ Active work. Update as items are completed and new work is identified.
 - [ ] Playwright e2e capture flow; throttled-network check on `/c/[slug]` (<1s) — medium
 - [ ] Wire both scripts into CI once a hosted test project exists — small
 
-**Phase C — Deploy** (after A)
+**Phase C — Deploy** (next up)
 - [ ] Perry: Vercel project + env vars (`NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`=prod, `CRON_SECRET`, `INBOUND_WEBHOOK_SECRET`)
 - [ ] Verify prod flow, cron firing, QR codes point at prod URL
 - [ ] Perry (when email goes live): Resend account + verified domain → `RESEND_API_KEY`/`EMAIL_FROM`

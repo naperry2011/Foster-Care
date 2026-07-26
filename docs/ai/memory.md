@@ -13,16 +13,19 @@ Running history of what's been built and current state. Update after major chang
 - Verified end-to-end against the real database: magic-link sign-in, agency onboarding, event + QR creation, public capture, stage moves through the UI, board/contacts/tasks/ledger all rendering real data
 - `scripts/smoke-test.mjs` — 24 assertions green: immutable attribution, append-only history, stage RPC enforcement, consent, opt-out irreversibility, send dedupe, and full two-tenant RLS isolation
 - `scripts/cron-test.mjs` — 9 assertions green: wake-ups, cold flags, once-only task creation, no sends to unconsented/opted-out contacts
+- `scripts/anon-audit.mjs` — 17 checks, 0 exposed: every table denies anonymous reads and writes; only `public_capture` is reachable without a session
 - Deploys to Vercel without env vars (landing renders; middleware degrades gracefully)
 
 ### Known Issues
-- **Migration 0004 is written but NOT yet applied** — until it runs, anyone holding the public anon key can erase any contact via `delete_contact()` (0003 shipped with a null-`auth.uid()` bypass intended for service_role). 0003 itself is applied and working.
+- No Resend key yet, so nurture emails are skipped (by design, not an error) — nothing has verified a real email send end-to-end
+- Playwright e2e and the throttled-3G capture-page check still unwritten; scripts aren't in CI (needs a separate test project)
+- No UI for erasure yet — `delete_contact()` exists and is tested, but nothing in the app calls it
 - No Resend key yet, so nurture emails are skipped (by design, not an error)
 - Playwright e2e and the throttled-3G capture-page check still unwritten
 - Browser-pane screenshots time out on this machine (pages render fine; tooling quirk)
 
 ### In Progress
-- M4-A: apply migration 0004, then re-run all three scripts (expect 32/9/17 green).
+- M4-A complete. Migrations 0001–0004 applied; all three suites green (smoke 32/32, cron 9/9, anon-audit 17 safe / 0 exposed); UI verified against live data including the new inline wake-up picker. Next: M4-C (Vercel env + prod deploy).
 
 ## Implementation History
 
