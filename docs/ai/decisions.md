@@ -178,6 +178,58 @@ plan got wrong.
 
 ---
 
+## ADR-013: The tenancy row is not self-editable, and anonymous opt-out has its own door
+
+**Date:** 2026-07-26
+**Status:** Accepted (supplements ADR-002 and ADR-012)
+
+**Context**
+An audit found two doors wider than what was behind them needed.
+
+`app_user_self_update` was `for update using (id = auth.uid())` with no
+`with check`. Postgres reuses USING as the check when WITH CHECK is absent, so
+the only rule was that it was still your own row: `agency_id` and `role` were
+both free to rewrite. `current_agency_id()` reads `agency_id` from that row and
+every policy in the schema is written against it, so a member could move
+themselves into another tenant and every policy would agree. Only not knowing
+another agency's uuid stood in the way.
+
+Separately, `/u/[id]` was calling `createAdminClient()` on a route open to the
+internet, to flip three columns on one contact. ADR-012 removed the service-role
+key from `src/app` for exactly this reason; the capability returned through an
+import, so the ADR's guarantee stayed literally true while the property it stood
+for was gone.
+
+**Decision**
+Migration 0011. The `app_user` policy gains an explicit `with check`, and a
+`before update` trigger raises if `agency_id` or `role` changed and
+`auth.uid()` is not null. A policy cannot express column immutability: WITH
+CHECK sees only the new row, and comparing it to the old one from inside a
+policy would recurse through that same policy. `service_role` is exempt, or
+`accept_invite()` and the scripts break.
+
+`public_unsubscribe(uuid)` is a security-definer RPC granted to `anon`, the same
+shape as `public_capture()`. It is idempotent, because opt-out is irreversible
+by trigger and a retry must be a no-op, and it returns false rather than raising
+on an unknown id so it cannot be used to enumerate contact ids.
+
+**Consequences**
+- **Positive:** tenancy no longer rests on a uuid being unguessable.
+  `createAdminClient` appears nowhere under `src/app`, which is what ADR-012
+  meant rather than what it said. Both are covered by assertions rather than
+  trusted.
+- **Negative:** two more objects to keep in mind, and role changes now have to
+  go through `service_role`, so a future "promote a teammate" feature needs an
+  RPC rather than an update.
+
+**State the rule as a capability, not a spelling.** ADR-012 said the key "no
+longer appears anywhere under `src/app`", and a grep kept passing while the
+reach came back through `@/lib/admin`. The invariant worth holding is that no
+route under `src/app` may construct a service-role client except the two system
+endpoints, which is checkable with an eslint `no-restricted-imports` rule.
+
+---
+
 ## ADR-012: Joining an agency is an RPC, not a service-role write
 
 **Date:** 2026-07-26

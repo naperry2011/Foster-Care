@@ -92,7 +92,7 @@ node scripts/demo-test.mjs  .env.local   # 5  — demo tenancy guards
 
 ## Setup
 
-1. **Supabase** — create a project, then run every file in `supabase/migrations/` in numeric order, `0001` → `0010` (or `supabase db push`). Forward-only and not idempotent: run each exactly once.
+1. **Supabase** — create a project, then run every file in `supabase/migrations/` in numeric order, `0001` → `0011` (or `supabase db push`). Forward-only and not idempotent: run each exactly once.
 2. **Env** — copy `.env.example` to `.env.local` and fill in the Supabase URL, anon key and service-role key. `RESEND_API_KEY`/`EMAIL_FROM` are only needed for nurture email; `CRON_SECRET`/`INBOUND_WEBHOOK_SECRET` guard the system endpoints.
 3. `npm install && npm run dev`
 4. Sign in with a magic link, create your agency at `/onboarding`, create an event at `/events`, scan the QR code.

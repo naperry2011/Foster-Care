@@ -50,6 +50,18 @@ a human with a real browser is part of the pipeline.
 Update the filename and `az_stat_source` title constants at the top of the
 script when the reports change edition.
 
+## Apply before anything else
+
+- [ ] **Run migration `0011_tenancy_and_unsubscribe.sql`.** Forward-only, not
+      idempotent, run once. The code is already merged and is ahead of the
+      database: until this runs, `public_unsubscribe()` does not exist and the
+      unsubscribe page will fail. Then re-run `smoke-test` (three new tenancy
+      assertions) and `anon-audit` (two new `public_unsubscribe` assertions).
+- [ ] Confirm which Vercel environments carry `CRON_SECRET` and
+      `INBOUND_WEBHOOK_SECRET`. The endpoints now refuse when the variable is
+      missing rather than accepting the literal "Bearer undefined", so a preview
+      deployment that lacked them was open and will now correctly 401.
+
 ## Blocked
 
 - [ ] Twilio A2P 10DLC registration — needs a legal business entity/EIN
