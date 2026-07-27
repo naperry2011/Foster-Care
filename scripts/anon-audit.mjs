@@ -89,6 +89,17 @@ try {
     ? ok("public_unsubscribe scope", "a bad id opted nobody out")
     : hole("public_unsubscribe scope", "calling it with a junk id affected real rows");
 
+  // The ledger RPCs (0012) are security invoker, so RLS would hand anon nothing
+  // even if they were callable. They are still revoked by name, because ADR-007
+  // says the rule is the rule and "it would return empty anyway" is how the
+  // journey_requirement hole got in.
+  for (const fn of ["ledger_rows", "ledger_waiting_room"]) {
+    const { error } = await anon.rpc(fn);
+    error
+      ? ok(fn, error.message.slice(0, 40))
+      : hole(fn, "callable by a signed-out visitor");
+  }
+
   // az_stat is written only by the import script holding the service-role key.
   // If a stranger can insert here, every figure on /arizona becomes untrustworthy.
   const { error: azW } = await anon.from("az_stat").insert({
