@@ -805,8 +805,17 @@ F-001 was High in the first issue and is now Low; see the correction in its entr
 | Finding | Status |
 |---|---|
 | F-001 | Bump applied; finding corrected and downgraded to Low |
+| F-003 | **Code and migration 0011 written, NOT yet applied.** Policy gains `with check`, a trigger pins `agency_id` and `role`, and three smoke-test assertions cover agency-hop, self-promotion, and the rename that must still work |
+| F-004 | **Fixed in code.** `/u/[id]` asks on GET and writes on POST; `List-Unsubscribe` now points at a POST-only endpoint with `List-Unsubscribe-Post` per RFC 8058, so real one-click still works and scanners get 405 |
+| F-005 | **Fixed.** `verifySystemSecret()` treats a missing secret as a refusal and compares with `timingSafeEqual` |
+| F-012 | **Fixed by 0011.** `public_unsubscribe()` replaces the service-role client on the public route. `createAdminClient` now appears nowhere under `src/app` |
 | F-016 | Closed. `v0.6.0` tagged at `456d391` and pushed |
 | Add-contact gap, source deletion, mobile layout | Shipped in `456d391`, verified at 375px. Not audit findings; reported by the owner from using the product |
+
+**Outstanding before any of F-003, F-004 or F-012 is actually closed:** migration
+0011 has not been run. It is forward-only and not idempotent. Apply it once, then
+re-run `smoke-test` and `anon-audit`. Until then the code is ahead of the database,
+and `public_unsubscribe` does not exist, so the unsubscribe page will fail.
 
 ---
 generated_by: codebase-audit skill v1.1

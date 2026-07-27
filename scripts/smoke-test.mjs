@@ -162,6 +162,39 @@ try {
   const { data: bLedger } = await B.client.from("outcome").select("id");
   (bLedger ?? []).length === 0 ? pass("agency B ledger is empty") : fail("agency B ledger is empty", "outcome leak");
 
+  // ---------- the tenancy row itself (0011, audit F-003) ----------
+  // Everything above asks "can B read or write A's rows". This asks the harder
+  // question: can B stop being B? current_agency_id() reads one column of one
+  // row, and until 0011 that row's UPDATE policy had no `with check` and no
+  // column guard, so a member could rewrite their own agency_id and walk into
+  // another tenant with every policy in the schema still agreeing with them.
+  info("Tenancy row is not self-editable");
+
+  await B.client.from("app_user").update({ agency_id: A.agencyId }).eq("id", B.userId);
+  const { data: bAfterHop } = await admin.from("app_user")
+    .select("agency_id").eq("id", B.userId).single();
+  bAfterHop?.agency_id === B.agencyId
+    ? pass("member cannot move themselves into another agency")
+    : fail("member cannot move themselves into another agency", "TENANT HOP SUCCEEDED");
+
+  await B.client.from("app_user").update({ role: "director" }).eq("id", B.userId);
+  await B.client.from("app_user").update({ role: "owner" }).eq("id", B.userId);
+  const { data: bAfterRole } = await admin.from("app_user")
+    .select("role").eq("id", B.userId).single();
+  bAfterRole?.role !== "owner"
+    ? pass("member cannot change their own role", `still ${bAfterRole?.role}`)
+    : fail("member cannot change their own role", "SELF-PROMOTION SUCCEEDED");
+
+  // The one edit that must still work, or /settings breaks.
+  const newName = `Renamed ${Date.now()}`;
+  const { error: nameErr } = await B.client.from("app_user")
+    .update({ full_name: newName }).eq("id", B.userId);
+  const { data: bAfterName } = await admin.from("app_user")
+    .select("full_name").eq("id", B.userId).single();
+  !nameErr && bAfterName?.full_name === newName
+    ? pass("member can still rename themselves")
+    : fail("member can still rename themselves", nameErr?.message ?? "name did not change");
+
   // ---------- Arizona statistics (0007) ----------
   info("Arizona statistics");
   const { data: azRead } = await A.client.from("az_stat").select("metric_id").limit(5);

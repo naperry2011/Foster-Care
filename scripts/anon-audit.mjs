@@ -71,6 +71,24 @@ try {
     ? ok("delete_demo_data", e6.message.slice(0, 40))
     : hole("delete_demo_data", "anyone can bulk-wipe an agency");
 
+  // public_unsubscribe (0011) is deliberately granted to anon: the recipient of
+  // an email has no session. So the check is not "can anon call it" but "can
+  // anon do anything WITH it beyond opting one known id out". It must not
+  // report whether an id exists, and it must not touch anything else.
+  const { error: unsubBad, data: unsubBadRet } = await anon.rpc("public_unsubscribe", {
+    p_contact_id: "00000000-0000-0000-0000-000000000000",
+  });
+  !unsubBad && unsubBadRet === false
+    ? ok("public_unsubscribe", "unknown id returns false, no error to probe with")
+    : hole("public_unsubscribe", `unexpected response: ${unsubBad?.message ?? unsubBadRet}`);
+
+  const { count: stillConsented } = await admin.from("contact")
+    .select("*", { count: "exact", head: true })
+    .eq("agency_id", agencyId).is("opted_out_at", null);
+  stillConsented > 0
+    ? ok("public_unsubscribe scope", "a bad id opted nobody out")
+    : hole("public_unsubscribe scope", "calling it with a junk id affected real rows");
+
   // az_stat is written only by the import script holding the service-role key.
   // If a stranger can insert here, every figure on /arizona becomes untrustworthy.
   const { error: azW } = await anon.from("az_stat").insert({

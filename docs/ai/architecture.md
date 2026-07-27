@@ -35,7 +35,8 @@ and `www` 308s to it. Deployment runbook: `docs/deploy-setup.md`.
 - **Arizona (0007):** `az_geo` → `az_metric` / `az_stat_source` / `az_stat` — public reference data, readable by any signed-in user and **writable by nobody** (no write policy; the import script's service-role key is the only path in). `agency_target` and `agency_county` are ordinary agency-scoped tables. ADR-009/011.
 - **Onboarding (0008):** `journey_requirement` (NULL agency = global AZ default) → `journey` → `journey_step`. Both journey FKs are `ON DELETE CASCADE` or erasure breaks. ADR-008.
 - **Team (0009):** `agency_invite`.
-- **RPCs:** `set_contact_stage()` (only way to move stages), `public_capture()` (only anon write path), `current_agency_id()` (RLS helper), `delete_contact()` / `delete_demo_data()` (audited erasure), `quick_add_contact()`, `start_journey()`, `create_agency()` / `invite_preview()` / `accept_invite()` (joining, ADR-012).
+- **Tenancy (0011):** `app_user.agency_id` and `.role` are immutable to their own holder by trigger; the policy carries an explicit `with check`. `current_agency_id()` reads that row, so it is the hinge the whole RLS spine turns on. ADR-013.
+- **RPCs:** `set_contact_stage()` (only way to move stages), `public_capture()` and `public_unsubscribe()` (the only two anon paths), `current_agency_id()` (RLS helper), `delete_contact()` / `delete_demo_data()` (audited erasure), `quick_add_contact()`, `start_journey()`, `create_agency()` / `invite_preview()` / `accept_invite()` (joining, ADR-012).
 - **Every new function must be revoked from `anon` by name** and every new policy needs an explicit `to authenticated` when it has an `agency_id is null` disjunct. `scripts/anon-audit.mjs` is the check.
 
 ### Automation (`/api/cron/tick` + `src/lib/send.ts`)
@@ -71,7 +72,7 @@ and `www` 308s to it. Deployment runbook: `docs/deploy-setup.md`.
 
 - Supabase Auth magic links; `src/proxy.ts` gates non-public paths and carries the destination through sign-in as `?next=` (same-site paths only — `//host` is rejected alongside `https://`); `requireUser()` re-checks per page.
 - RLS on every table scoped by `current_agency_id()`; anon role can only execute `public_capture`.
-- Service-role key used only in `src/lib/admin.ts` (`server-only` import guard) and in `scripts/`; it no longer appears anywhere under `src/app` (ADR-012). System endpoints guarded by shared secrets.
+- Service-role key used only in `src/lib/admin.ts` (`server-only` import guard) and in `scripts/`. As of ADR-013 the *capability* is also gone from `src/app`: `createAdminClient` is imported only by the two system endpoints, never by a page. System endpoints are guarded by shared secrets compared with `verifySystemSecret()`, which refuses when the secret is unset rather than matching the literal "Bearer undefined".
 - No child data anywhere, by design (spec §02).
 
 ## Known Constraints / Trade-offs

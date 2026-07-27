@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/admin";
+import { verifySystemSecret } from "@/lib/system-auth";
 import { sendNurtureEmail, type NurtureContact, type Template } from "@/lib/send";
 
 export const maxDuration = 300;
@@ -11,9 +12,9 @@ export const maxDuration = 300;
 //  3. cadence      — quarterly touch for not_yet
 //  4. cold flags   — considering contacts gone silent → human task
 export async function GET(request: Request) {
-  if (
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  const header = request.headers.get("authorization");
+  const secret = process.env.CRON_SECRET;
+  if (!verifySystemSecret(header?.replace(/^Bearer /, "") ?? null, secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const admin = createAdminClient();
