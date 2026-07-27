@@ -41,8 +41,10 @@ consuming the one moment the waiting room delivers value (BUG-004). None has fir
 yet, because no email has been sent and no tenant has 1,000 contacts. All three will
 fire during the first design partner's first month.
 
-**Second, the row that decides which tenant a user belongs to is writable by that
-user.** `app_user_self_update` has no `WITH CHECK` clause and no column restriction,
+**Second, a member can promote themselves to any role.** *(Revised: originally
+stated as a tenant hop. Live testing showed the hop is refused with `42501` and
+only the role change succeeds. Severity High to Medium; see the F-003
+correction.)* `app_user_self_update` has no `WITH CHECK` clause and no column restriction,
 so an authenticated member can rewrite their own `agency_id` and `role`. Every RLS
 policy in the schema resolves through that column via `current_agency_id()`. This is
 not exploitable by a stranger today, because nothing discloses another agency's UUID
@@ -64,8 +66,10 @@ and independent), then CI before the first design partner, then the pilot.** Not
 here calls for rework or redesign.
 
 The findings register lists **21 items across seven dimensions, with 0 Critical and
-3 High**. The three High findings are one pagination pass, one RLS policy clause,
-and one GET-to-POST change. On the positive side: the secret scan
+2 High** after two corrections made by checking claims against the tools rather
+than the code (F-001 High to Low, F-003 High to Medium). Of those two Highs, F-004
+is fixed and merged, leaving **F-002, the 1,000-row cap, as the only open High**.
+On the positive side: the secret scan
 is clean across the entire history, the open-redirect surface on the sign-in path is
 correctly closed in both places it appears, the send layer's consent and idempotency
 gates are structurally sound, and erasure is implemented and tested, which is a
@@ -197,7 +201,10 @@ email leakage. Details in [`bugs.md`](bugs.md).
   transitive and none reachable from a request: `postcss` and `sharp` bundled inside
   `next`, plus a dev-only eslint chain. The bump to 16.2.12 was applied and changed
   nothing. See the correction in `findings.md`.
-- **F-003 (High)** `app_user_self_update` has no `WITH CHECK` and no column
+- **F-003 (Medium, corrected)** A member can set their own `role` to anything;
+  verified live. The tenant hop originally claimed here is refused by RLS with
+  `42501` and does not occur. Fixed in migration 0011, not yet applied.
+- **F-003, original wording (superseded)** `app_user_self_update` has no `WITH CHECK` and no column
   restriction, so a member can rewrite their own `agency_id` and `role`, which is the
   column every RLS policy resolves through.
 - **F-005 (Medium)** Cron and webhook auth compare against the literal string
@@ -269,12 +276,20 @@ The deep redesign of the send seam belongs to a focused session, not to this aud
 
 Roughly one focused day of work. All four are independent.
 
-| # | Item | Finding | Severity |
+**All of Horizon 1 is written and merged as of 2026-07-26. One step remains for
+anybody: migration 0011 has not been run.**
+
+| # | Item | Finding | Status |
 |---|---|---|---|
-| H1-1 | Add `with check` and a column guard to `app_user_self_update`, plus a smoke-test assertion that agency-hopping and self-promotion both fail | F-003 | High |
-| H1-2 | Move the unsubscribe write to POST behind a confirmation page; add `List-Unsubscribe-Post` | F-004 | High |
-| H1-3 | Fail closed on missing `CRON_SECRET` and `INBOUND_WEBHOOK_SECRET`; confirm which Vercel environments carry them | F-005 | Medium |
-| ~~H1-4~~ | ~~Bump `next` to `16.2.12`~~ | F-001 | **Done**, and it cleared no advisory. See the F-001 correction |
+| H1-1 | **Run migration 0011.** Forward-only, once. Then re-run `smoke-test` and `anon-audit` | F-003, F-004, F-012 | **Outstanding.** Needs a DB credential; the service-role key cannot execute DDL |
+| ~~H1-2~~ | Column guard on `app_user`, plus three smoke-test assertions | F-003 | Written, pending 0011. Downgraded to Medium after testing |
+| ~~H1-3~~ | Unsubscribe asks on GET, writes on POST; RFC 8058 one-click endpoint | F-004 | Written, pending 0011 |
+| ~~H1-4~~ | Fail closed on missing system secrets, `timingSafeEqual` | F-005 | **Done and live** |
+| ~~H1-5~~ | `public_unsubscribe()` replaces service-role on a public route | F-012 | Written, pending 0011 |
+| ~~H1-6~~ | Bump `next` to `16.2.12` | F-001 | **Done**, and it cleared no advisory |
+
+**With Horizon 1 closed, F-002 (the 1,000-row cap) is the highest-severity open
+finding in the register and should be the next thing built.**
 
 ### Horizon 2: Stabilize (before the first design partner)
 

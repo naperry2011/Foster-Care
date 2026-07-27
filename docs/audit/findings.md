@@ -101,9 +101,32 @@ logs, the tick returns `{"ok": true}`.
 
 ---
 
-## F-003: A member can rewrite the row that decides which tenant they are in (High / Security & Compliance)
+## F-003: A member can promote themselves, but cannot change tenant (Medium / Security & Compliance)
 
-**Verification:** STATIC-ONLY
+**Verification:** VERIFIED against the live database, 2026-07-26.
+
+> **Correction.** This was rated High on the strength of a cross-tenant read, and
+> that half is wrong. Executed as a signed-in member of agency B:
+>
+> | Attempt | Result |
+> |---|---|
+> | `update app_user set agency_id = <agency A>` | **Refused.** `42501 new row violates row-level security policy for table "app_user"`. Row unchanged. |
+> | `update app_user set role = 'owner'` | **Succeeded.** No error; the row now reads `role: "owner"`. |
+> | `update app_user set full_name = ...` | Succeeded, as it must, or `/settings` breaks. |
+>
+> The tenant hop does not happen. `app_user_same_agency` is a SELECT policy of
+> `agency_id = current_agency_id()`, and the new row fails it, so the write is
+> rejected. The severity drops from High to Medium: what remains is real but
+> currently inert, not a path to another agency's data.
+>
+> Note **why** the hop is blocked, because it matters. Nothing says `agency_id`
+> is immutable. It is refused as a side effect of an unrelated SELECT policy
+> being evaluated against the post-update row. That is a working lock installed
+> by accident, and it would quietly disappear if the SELECT policy were ever
+> widened. Migration 0011 is still worth applying: it converts an emergent block
+> into a stated rule, and it closes the role hole, which is genuinely open.
+
+**Original assessment (retained for the reasoning, severity superseded above):**
 
 **Evidence:**
 - `supabase/migrations/0001_schema.sql:204-205`:
@@ -122,16 +145,17 @@ logs, the tick returns `{"ok": true}`.
 - `role` is currently display-only (`src/app/(app)/settings/page.tsx:42` and
   `settings/team/page.tsx:64`); nothing in code or RLS gates on it.
 
-**Impact:** The whole tenancy model resolves through one column that the user can
-write. Setting `role` to `director` is trivially possible today and harmless only
-because role gates nothing yet, which makes it a trap for the first feature that
-uses it. Setting `agency_id` to another agency's UUID would grant full read and
-write access to that tenant's contacts, touches and notes, all of which is PII
-about prospective foster parents. The precondition is knowing a target UUID, and
-nothing in the product discloses one to a non-member (`agency_read` is scoped, and
-`invite_preview()` deliberately returns only a name), so this is not exploitable by
-a stranger today. It is a single leaked identifier away from being so, and the
-identifier appears in server logs, support conversations and screenshots.
+**Impact (revised against the test results):** Self-promotion is real and
+demonstrated. It is inert today only because `role` gates nothing: grep confirms
+it is read in two places, both of which render it as a label. The moment any
+feature branches on `role` (an admin-only settings page, a "who can invite"
+rule, a delete permission), every member silently already has whatever the top
+role is. That is the trap, and it is cheap to close now and expensive to notice
+later.
+
+The tenant hop, which is what justified the original High rating, does not occur.
+The data-exposure scenario described in the first issue of this register was
+wrong, and no cross-tenant read is reachable through this path.
 
 **Recommendation:**
 1. Replace the policy with one that pins the mutable surface:
@@ -780,13 +804,16 @@ forceable in minutes against an endpoint with no rate limit.
 | Severity | Count | IDs |
 |---|---:|---|
 | Critical | 0 | none |
-| High | 3 | F-002, F-003, F-004 |
-| Medium | 10 | F-005, F-006, F-007, F-008, F-009, F-010, F-011, F-012, F-013, F-014 |
+| High | 2 | F-002, F-004 |
+| Medium | 11 | F-003, F-005, F-006, F-007, F-008, F-009, F-010, F-011, F-012, F-013, F-014 |
 | Low | 7 | F-001, F-015, F-016, F-017, F-018, F-019, F-020 |
 | Informational | 1 | F-021 |
 | **Total** | **21** | |
 
-F-001 was High in the first issue and is now Low; see the correction in its entry.
+Two findings were downgraded after checking them against the tools rather than
+the code: F-001 High to Low, F-003 High to Medium. Both corrections are recorded
+in their entries. **F-002, the 1,000-row cap, is now the highest-severity open
+finding and the only High that is not already fixed in code.**
 
 ## By dimension
 
@@ -805,7 +832,7 @@ F-001 was High in the first issue and is now Low; see the correction in its entr
 | Finding | Status |
 |---|---|
 | F-001 | Bump applied; finding corrected and downgraded to Low |
-| F-003 | **Code and migration 0011 written, NOT yet applied.** Policy gains `with check`, a trigger pins `agency_id` and `role`, and three smoke-test assertions cover agency-hop, self-promotion, and the rename that must still work |
+| F-003 | **Downgraded to Medium after live testing** (hop refused, self-promotion succeeded). Migration 0011 written, **NOT yet applied**. Until it runs, `smoke-test` fails one assertion, `member cannot change their own role: SELF-PROMOTION SUCCEEDED`, which is the suite correctly reporting an open defect |
 | F-004 | **Fixed in code.** `/u/[id]` asks on GET and writes on POST; `List-Unsubscribe` now points at a POST-only endpoint with `List-Unsubscribe-Post` per RFC 8058, so real one-click still works and scanners get 405 |
 | F-005 | **Fixed.** `verifySystemSecret()` treats a missing secret as a refusal and compares with `timingSafeEqual` |
 | F-012 | **Fixed by 0011.** `public_unsubscribe()` replaces the service-role client on the public route. `createAdminClient` now appears nowhere under `src/app` |
