@@ -178,6 +178,52 @@ plan got wrong.
 
 ---
 
+## ADR-014: The ledger aggregates in Postgres, not in the app
+
+**Date:** 2026-07-26
+**Status:** Accepted (supplements ADR-002)
+
+**Context**
+`/ledger` read every source, contact, outcome and `stage_change` into the page
+and counted them in TypeScript. Two problems, and only the second was on the
+tech-debt list.
+
+Supabase caps PostgREST at 1000 rows and returns HTTP 200 with the first 1000,
+no error and no truncation flag. So past a thousand contacts the ledger
+under-reported with nothing to notice. The README calls this "the screen that
+closes the sale"; quietly wrong numbers in front of a funder is the worst
+failure this product has. It was filed as a performance item, which is why it
+had been deferred.
+
+It also scanned contacts once per source, which is fine at 269 and not at
+25,000.
+
+**Decision**
+`ledger_rows()` and `ledger_waiting_room()` in migration 0012 do the arithmetic
+in SQL. Both are `security invoker`, so RLS scopes them through the same
+policies as everything else and neither function mentions agencies. The
+30.4-day month is kept verbatim so the median lag does not move.
+
+Elsewhere, unbounded reads go through `fetchAll()`, which pages until a short
+page and treats a full final page as an error rather than an ending. The board
+keeps a cap, because it renders a DOM node per contact — but the cap is printed
+on the page.
+
+**Consequences**
+- **Positive:** the cap and the O(sources × contacts) scan both disappear, and
+  the page becomes a renderer. `scripts/ledger-parity.mjs` proves the numbers
+  did not shift: 12 sources, no differences.
+- **Negative:** the ledger's definitions now live in SQL, so changing what
+  "warm" means is a migration. Given the definitions are the product's argument,
+  that is arguably correct.
+
+**A visible cap is a decision; an invisible one is a bug.** The board still
+truncates at 2,000 and says so, next to a note that the ledger and the wake-up
+dates do not. That distinction is the whole lesson: the failure was never the
+limit, it was the silence.
+
+---
+
 ## ADR-013: The tenancy row is not self-editable, and anonymous opt-out has its own door
 
 **Date:** 2026-07-26

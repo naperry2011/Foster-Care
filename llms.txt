@@ -5,12 +5,13 @@
 ## Project Overview
 
 **Tech Stack:** Next.js **16.2** (App Router, TS, Tailwind v4) · Supabase (Postgres/RLS/Auth) · Resend · Vercel
-**Status:** Live at **https://porchlightfostercare.org**. Milestones 0–5 complete and merged to `main`; migrations 0001–0010 applied. Five verification suites green.
+**Status:** Live at **https://porchlightfostercare.org**. Milestones 0–5 complete; migrations **0001–0012** applied; tagged `v0.6.0`. An engineering audit in `docs/audit/` has had its Horizon 1 closed — no open Critical or High findings. Suites green: smoke 62/62, anon-audit 39 safe.
 **Purpose:** Private licensing agencies (the buyer) are judged on licensed homes; Porchlight instruments the four funnel stages before the inquiry that no other tool sees.
 
 ## Core Documentation
 
 - `README.md` — Setup and the rules the code enforces
+- `docs/audit/report.md` — **the current priority list.** 21 findings; note F-001 and F-003 carry corrections that downgraded them
 - `docs/PLAN.md` — Milestone plan (M0–M5)
 - `docs/deploy-setup.md` — Production runbook: Vercel env, DNS, Supabase auth URLs
 - `docs/az-data-sources.md` — DCS workbook inventory; read before touching the Arizona parser
@@ -29,6 +30,8 @@
 - `supabase/migrations/0007_arizona.sql` — `az_*` public statistics (no write policy) + `agency_target` / `agency_county`
 - `supabase/migrations/0008_journey.sql` — onboarding checklist; both journey FKs are `ON DELETE CASCADE` or erasure breaks
 - `supabase/migrations/0009_team.sql` — invitations, `create_agency()` / `accept_invite()`
+- `supabase/migrations/0011_tenancy_and_unsubscribe.sql` — `app_user.agency_id`/`role` immutable to their holder; `public_unsubscribe()` (ADR-013)
+- `supabase/migrations/0012_ledger_in_sql.sql` — `ledger_rows()` / `ledger_waiting_room()`, security invoker (ADR-014)
 
 ### App
 - `src/app/page.tsx` — landing (signed out) vs dashboard (signed in); outside the route group
@@ -46,8 +49,12 @@
 - `src/lib/send.ts` — THE send gate (consent, idempotency, pause, demo refusal) — never bypass
 - `src/app/api/cron/tick/route.ts` — daily heartbeat (wake-ups, nurture, cadence, cold flags)
 - `src/app/api/webhooks/inbound/route.ts` — reply → pause + task
-- `src/lib/admin.ts` — service-role client (server-only; not used anywhere under `src/app`)
+- `src/lib/admin.ts` — service-role client (server-only). Imported **only** by the two system endpoints; never by a page (ADR-013)
+- `src/lib/system-auth.ts` — `verifySystemSecret()`; refuses when the secret is unset rather than matching `"Bearer undefined"`
+- `src/lib/fetch-all.ts` — pages past PostgREST's silent 1000-row cap; use it for any unbounded read
+- `src/app/api/unsubscribe/[id]/route.ts` — POST-only RFC 8058 one-click; the page at `/u/[id]` asks first
 - `scripts/az-stats-import.mjs` — the only writer of `az_stat`; run by hand twice a year
+- `scripts/ledger-parity.mjs` — proves the SQL ledger matches the TypeScript it replaced; re-run if you touch that aggregation
 
 ## Common Tasks
 
@@ -62,6 +69,10 @@
 - Every new function in the public schema is granted to `anon` by default — revoke by name. A policy with no `to` clause applies to `anon` too.
 - `NEXT_PUBLIC_*` is inlined at build time; dashboard changes need a rebuild.
 - Copy a pattern from the migration that last **fixed** it, not the one that created it.
+- **PostgREST caps at 1000 rows and says nothing** — HTTP 200, no truncation flag. Use `fetchAll()` or aggregate in SQL. Never leave a read unbounded.
+- **Migrations are pasted into the Supabase SQL editor by hand.** Do not run `supabase db push`: the history table is empty, so it would try to re-run `0001` onward, and those are not idempotent. Write new migrations re-runnable.
+- **Do not merge code that depends on an unapplied migration.** `/ledger` went down on `main` this way.
+- The in-app browser pane never completes React's Suspense reveal (`visibilityState: "hidden"`, so no `requestAnimationFrame`). Flush with `window.$RV(window.$RB)`. Real browsers are fine. See `docs/ai/memory.md`.
 
 ## Environment Variables
 

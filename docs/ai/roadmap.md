@@ -18,24 +18,31 @@ a real agency's families.
 
 ## Now
 
-- **Prove the live site with a human.** Production is up on
-  porchlightfostercare.org and everything checkable from a terminal is verified.
-  What remains needs a person: sign in with a magic link, and scan a printed QR
-  from a phone on mobile data.
+- **A throwaway Supabase project.** It reads like a CI chore and is actually the
+  highest-leverage item on this list: it is why the suites only run when somebody
+  remembers, why every verification writes to the database production uses, and
+  why migrations have to be hand-pasted. One afternoon retires all three.
+- **CI on pull request** — typecheck, lint, build, `npm audit`. None of it needs
+  a database, so it lands before the project above; the suites join afterwards.
+  Then protect `main`.
+- **Rate limit the capture page** before a printed QR code is on a real table.
+  It is the only public write path and currently has no throttle of any kind.
 - **Resend account + verified domain.** The send layer has been exercised only
   against a missing API key, where it correctly skips. Nothing has reached an
-  inbox. `porchlightfostercare.org` is the domain to verify when the time comes —
-  and note it cannot be rehearsed on the demo agency, which `send.ts` refuses.
+  inbox. Cannot be rehearsed on the demo agency, which `send.ts` refuses. Check
+  Gmail's one-click unsubscribe against a real message while you're there.
+- **Prove the live site with a human** — magic-link delivery, a printed QR
+  scanned on mobile data, and the mobile nav on an actual phone.
 - **Design-partner onboarding** — seed sources, backfill licensed homes, set
   their counties on `/arizona`.
-- Playwright e2e + throttled-3G check on the capture page
-- Suites into CI (needs a throwaway Supabase project)
 
 ## Next
 
-- Email the invitation from `/settings/team` instead of copying a link
+- Email the invitation from `/settings/team` instead of copying a link. Note it
+  will be the first non-nurture message through `send.ts` and will meet the
+  channel-seam problem in ADR-003 before SMS does.
 - A "who's in onboarding" list — the tracker is only reachable per contact
-- `/ledger` aggregation into a SQL view once an agency passes ~1,000 contacts
+- Error reporting and a cron heartbeat; a dead tick is currently invisible
 - Refresh the Arizona figures when DCS publishes (twice a year; see tasks.md)
 
 ## Later (v1.1 → v2, per spec)
@@ -47,6 +54,8 @@ a real agency's families.
 
 ## Recently Completed
 
+- Engineering audit (`docs/audit/`, 21 findings) and its Horizon 1: tenancy guard, unsubscribe rework, fail-closed system secrets, the 1000-row cap. No open Critical or High findings. Tagged `v0.6.0` — 2026-07-26
+- Add a contact from anywhere, delete a source, and a full responsive pass — the three gaps found by using the product rather than reading it — 2026-07-26
 - Production on porchlightfostercare.org: DNS, Vercel env, rotated system secrets, Supabase auth redirects, apex serving so QR codes carry no redirect — 2026-07-26
 - M5 complete (A–H): app shell, contact timeline, design system, demo agency, Arizona dashboard, onboarding progress, teammates, suites — 2026-07-26
 - M4-A/B: live Supabase, five verification suites, four defects and one security hole found and fixed — 2026-07-26

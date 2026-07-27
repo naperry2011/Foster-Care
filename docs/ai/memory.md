@@ -4,10 +4,10 @@ Running history of what's been built and current state. Update after major chang
 
 ## Current State
 
-**Status:** Active Development — Milestone 5 (Client-ready) complete, A–H
+**Status:** Active Development — M5 complete; engineering audit done and its Horizon 1 closed
 **Last Updated:** 2026-07-26
-**Version:** `main` (branch `m5-client-ready` merged and deleted)
-**Deployed:** **https://porchlightfostercare.org** (Vercel). Apex serves Production, `www` 308s to it. Supabase project `ygryunmvgyuqjxkumbmu`, migrations 0001–0010 applied.
+**Version:** `main` @ `9d4e860`, tagged **`v0.6.0`**
+**Deployed:** **https://porchlightfostercare.org** (Vercel). Apex serves Production, `www` 308s to it. Supabase project `ygryunmvgyuqjxkumbmu`, migrations **0001–0012** applied.
 
 ### What's Working
 - **The whole MVP, live**: capture → waiting room → nurture → ambassadors → attribution ledger, verified against the real database.
@@ -19,22 +19,77 @@ Running history of what's been built and current state. Update after major chang
 - **Onboarding progress** on a contact: nine Arizona requirements, parallel to stage `inquiry`, prompts but never performs "mark licensed".
 - **Teammates**: `agency_invite` + `/settings/team` + `/join/[token]`; sign-in carries `?next=`. Dashboard getting-started checklist ticks itself and disappears.
 - **Demo agency**: `demo@porchlight.demo` / `PorchlightDemo!2026` — 269 contacts, 11 sources, 23 licensed homes over 18 months, plus 3 counties, a goal, a pending invite and 3 families mid-onboarding (7/9, 4/9, 2/9). Rebuildable identically in one click. The ledger tells its own story (ambassadors ≈1 staff-hour per home, paid social $9,400/home, radio 0 homes).
-- **Five suites green**: smoke 59/59, cron 10/10, anon-audit 35 safe / 0 exposed, demo-test 5/5, plus `purge-test-agencies`.
+- **Add a contact from anywhere** (`/contacts/new`), with a required source picker and inline source creation. Attribution stays mandatory; there is deliberately no catch-all "direct" bucket.
+- **Delete a source** on its event page, refused by the FK the moment anyone was captured there, with the refusal explained rather than the button just failing.
+- **Usable on a phone.** Hamburger nav below `md`, the board's five lanes swipe with scroll-snap instead of stacking, contact and ledger tables become cards, and the ledger keeps its table for print.
+- **Suites green**: smoke **62/62**, anon-audit **39 safe / 0 exposed**, cron 10/10, demo-test 5/5, plus `purge-test-agencies` and `ledger-parity`.
 
 ### Known Issues
 - No Resend key, so nurture emails are skipped by design — no real send has ever been verified end to end. Note this cannot be demonstrated on the demo agency either: `send.ts` refuses it and fails closed (ADR-010).
 - Two things on production remain unproven because they need a human: actual email **delivery**, and a phone scanning a printed QR over mobile data. Everything else about the deploy is verified — see `docs/deploy-setup.md`.
 - Playwright e2e and the throttled-3G capture-page check still unwritten; suites aren't in CI (needs a separate test project).
-- `/ledger` still aggregates in TypeScript over every contact; fine at 269, revisit past ~1,000.
+- **No rate limit on `/c/[slug]`** — the only public write path, with ~20 bits of slug entropy. Junk capture would pollute the ledger's denominators (audit F-006).
+- **The inbound webhook matches contacts across every tenant** by `ilike` on the from-address, with no `agency_id` filter, on the service-role client. One person in two agencies' lists means a reply can land in the wrong one (audit F-007).
+- **Nothing notices if the cron stops.** No error reporting, no heartbeat; a dead tick looks exactly like a quiet week (audit F-011).
+- `.env.example` exists on disk but `.gitignore`'s `.env*` excludes it, so a fresh clone can't follow README step 2 (audit F-009).
 - **Browser-pane quirk, not a bug:** the preview pane runs with `visibilityState: "hidden"`, so `requestAnimationFrame` never fires and React's Suspense reveal never completes — pages look stuck on "Loading…" and screenshots time out. Flush manually with `window.$RV(window.$RB)` in the console. Real browsers are unaffected.
 - JSX in this setup strips the space after an expression at a line break (`{n} people` → "5people"). Bitten twice; use an explicit `{" "}`.
 
 ### In Progress
-- Milestone 5 complete and merged; production live on its own domain. Next: a
-  Resend account so a nurture email has actually been sent once, then
-  design-partner onboarding.
+- Audit Horizon 1 is closed and there are no open Critical or High findings.
+  Next: a throwaway Supabase project (it unblocks CI *and* stops every
+  verification writing to the database production uses), then CI, then a Resend
+  account so a nurture email has actually been sent once.
 
 ## Implementation History
+
+### 2026-07-26 - Engineering audit, and its Horizon 1
+
+**What was built:** an audit in `docs/audit/` (7 documents, 21 findings across 7
+dimensions), then the fixes for everything it rated Critical or High. Plus three
+gaps Perry found by using the product, which no static review had surfaced.
+
+**The three usability gaps** (`456d391`, tag `v0.6.0`): there was no way to add a
+contact except from inside an event; sources could never be deleted, so every
+test event was permanent; and the app was unusable on a phone. The add-contact
+form asks for a source rather than inventing a default, because `source_id` is
+`NOT NULL` and immutable and the ledger is the reason. Source deletion leans on
+the existing FK rather than a new check — Postgres already refuses it once
+anyone has been captured.
+
+**Horizon 1** (`074a033`, `90fc1bd`, `b14ee5b`):
+- **F-005** Both system endpoints compared against `` `Bearer ${process.env.X}` ``.
+  Unset, that renders `"Bearer undefined"`, and anyone sending exactly that got
+  in. Fail-open in precisely the case it most needed to fail closed. Now
+  `verifySystemSecret()` with `timingSafeEqual`.
+- **F-003 / F-012 / F-004** (migration 0011, ADR-013). `app_user`'s UPDATE policy
+  had no `with check`, so `role` was self-editable; unsubscribe held a
+  service-role client on a public route; and `/u/[id]` opted people out on GET,
+  where mail scanners would have done it for them, irreversibly.
+- **F-002** (migration 0012). Nine unbounded reads relied on getting everything
+  back from a PostgREST that caps at 1000 rows and says nothing. The ledger's
+  arithmetic moved into Postgres, which retired the cap and the
+  O(sources × contacts) scan together; the cron pages through `fetchAll()`.
+
+**Why:** the audit was to find out what an inherited-code reviewer would say
+before an agency's data is in the product. The answer was: the invariants are
+unusually good, and the gaps are all in the layer between a working application
+and an operated one.
+
+**Two findings were wrong and were corrected in place**, both after running
+something instead of reading it. F-001 claimed nine Next.js CVEs including a
+middleware bypass, taken from a summary rather than `npm audit` itself — none
+existed, all 12 highs are transitive and unreachable, and the recommended bump
+cleared none of them. F-003 rated a tenant hop High; testing it showed the hop
+is refused with `42501` and only self-promotion works. Both corrections are
+visible in the documents rather than silently edited, because the wrong version
+was already pushed.
+
+**Files affected:** `docs/audit/**` (new), `supabase/migrations/0011-0012`,
+`src/lib/{system-auth,fetch-all}.ts`, `src/components/{MobileNav,AddContactForm,DeleteSource}.tsx`,
+`src/app/(app)/contacts/new/`, `src/app/api/unsubscribe/[id]/`, `src/app/u/[id]/page.tsx`,
+`scripts/ledger-parity.mjs`, and a responsive pass across 18 pages.
+`src/components/AppNav.tsx` deleted (dead since the AppShell rewrite).
 
 ### 2026-07-26 - Production on porchlightfostercare.org
 **What was built:** no application code — the deployment that makes it real.
@@ -117,7 +172,9 @@ agency's own data exists.
 
 ## Architecture Evolution
 
-Next.js 15 App Router monolith on Vercel; Supabase (Postgres + RLS + Auth) as the only backend; Resend for email; daily Vercel cron drives all automation. See architecture.md.
+Next.js 16.2 App Router monolith on Vercel; Supabase (Postgres + RLS + Auth) as the only backend; Resend for email; daily Vercel cron drives all automation. See architecture.md.
+
+The direction of travel since M5 is **arithmetic and authorization moving down into Postgres**. The ledger now aggregates in SQL (0012), tenancy is pinned by trigger rather than by an accident of an unrelated policy (0011), and anonymous writes go through two named security-definer doors (`public_capture`, `public_unsubscribe`) instead of a service-role client. The app is steadily becoming a renderer over a database that enforces its own rules, which is ADR-002 taken further than it was originally written.
 
 ## Lessons Learned
 
@@ -139,3 +196,9 @@ Next.js 15 App Router monolith on Vercel; Supabase (Postgres + RLS + Auth) as th
 - A page returning 200 does not mean it reached the database. Pick a probe that actually reads (`/u/[id]`), and prove it by comparing a real id against a bogus one.
 - `supabase-js` `.select("*", { head: true })` returns 204 with no error for a table that does not exist — useless as an existence check. Use `.select("*").limit(1)` and read `error`.
 - SheetJS's ESM build has no `fs` bound: `XLSX.readFile()` throws "Cannot access file". Read the bytes and use `XLSX.read(buffer)`.
+- **A silent cap is worse than a small one.** PostgREST returns the first 1000 rows with HTTP 200 and no truncation flag, so nine reads were quietly wrong and the ledger would have under-reported in front of a funder. Where a cap is genuinely wanted (the board renders a node per contact), state it on the page. A visible cap is a decision; an invisible one is a bug.
+- **Never publish an advisory count or CVE title you did not copy from the tool.** F-001 was the audit's headline finding, described nine Next.js vulnerabilities that do not exist, and was built from a paraphrase of `npm audit`. The bump it recommended cleared nothing.
+- **"Can B read A's rows" is the easy half of a tenancy test. Ask whether B can stop being B.** Every isolation assertion passed while `role` was self-editable, because nothing tried to change the row that decides who you are.
+- **A lock can be installed by accident.** The tenant hop turned out to be blocked, but only because an unrelated SELECT policy is evaluated against the post-update row. Nothing declared `agency_id` immutable, so widening that policy later would have silently unlocked it. Emergent protection is not protection.
+- **Don't push code that depends on an unapplied migration.** `/ledger` was broken on `main` for a stretch because the page called RPCs that did not exist yet. Either ship the code after the migration lands, or keep the old path until it does.
+- **Read `memory.md` before debugging the environment.** The browser-pane Suspense quirk below was already written down here, and rediscovering it from scratch cost most of an afternoon.
