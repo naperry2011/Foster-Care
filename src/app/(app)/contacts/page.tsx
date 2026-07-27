@@ -49,7 +49,7 @@ export default async function ContactsPage({
   };
 
   return (
-    <main className="max-w-5xl mx-auto px-6 py-8">
+    <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <p className="font-hand text-2xl text-clay">everyone you&apos;ve met</p>
@@ -57,7 +57,15 @@ export default async function ContactsPage({
             Contacts{stage ? ` — ${STAGE_LABELS[stage as Stage]}` : ""}
           </h1>
         </div>
-        <ContactSearch initial={q ?? ""} />
+        <div className="flex items-center gap-3 flex-wrap">
+          <ContactSearch initial={q ?? ""} />
+          <Link
+            href="/contacts/new"
+            className="shrink-0 rounded-full bg-porch text-night font-semibold px-5 py-2.5 text-sm hover:brightness-105"
+          >
+            Add contact
+          </Link>
+        </div>
       </div>
 
       {erased && (
@@ -72,7 +80,63 @@ export default async function ContactsPage({
         {total > PAGE_SIZE ? ` · page ${current} of ${lastPage}` : ""}
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-rule bg-white">
+      {/* Below md a five-column table means sideways scrolling on a phone, so
+          each contact becomes a card instead. Same data, same links. */}
+      <ul className="mt-4 md:hidden space-y-3">
+        {(contacts ?? []).map((c) => {
+          const src = c.source as unknown as { name: string } | null;
+          return (
+            <li
+              key={c.id}
+              className="rounded-2xl border border-rule bg-white p-4"
+            >
+              <Link href={`/contacts/${c.id}`} className="block">
+                <div className="font-medium">
+                  {[c.first_name, c.last_name].filter(Boolean).join(" ") ||
+                    c.phone ||
+                    c.email}
+                  {c.opted_out_at && (
+                    <span className="ml-2 text-xs text-clay">opted out</span>
+                  )}
+                </div>
+                <div className="text-muted text-xs mt-0.5 break-words">
+                  {[c.phone, c.email].filter(Boolean).join(" · ")}
+                </div>
+              </Link>
+              <div className="mt-2 text-xs text-muted flex flex-wrap gap-x-3 gap-y-1">
+                {src?.name && <span>{src.name}</span>}
+                {c.wake_up_on && <span>wakes {c.wake_up_on}</span>}
+                <span>{new Date(c.captured_at).toLocaleDateString()}</span>
+              </div>
+              <div className="mt-3">
+                <StageSelect contactId={c.id} stage={c.stage as Stage} />
+              </div>
+            </li>
+          );
+        })}
+        {(contacts ?? []).length === 0 && (
+          <li className="rounded-2xl border border-rule bg-white px-4 py-10 text-center">
+            <p className="font-display text-lg">
+              {q ? "Nobody by that name." : "No contacts yet."}
+            </p>
+            <p className="text-sm text-muted mt-1">
+              {q
+                ? "Try part of a phone number or email instead."
+                : "The next person who stops at your table doesn't have to be a memory."}
+            </p>
+            {!q && (
+              <Link
+                href="/contacts/new"
+                className="inline-block mt-4 rounded-full bg-porch text-night font-semibold px-5 py-2.5 text-sm"
+              >
+                Add a contact
+              </Link>
+            )}
+          </li>
+        )}
+      </ul>
+
+      <div className="mt-4 hidden md:block overflow-x-auto rounded-2xl border border-rule bg-white">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-rule">
@@ -129,12 +193,20 @@ export default async function ContactsPage({
                       : "The next person who stops at your table doesn't have to be a memory."}
                   </p>
                   {!q && (
-                    <Link
-                      href="/events"
-                      className="inline-block mt-4 rounded-full bg-porch text-night font-semibold px-5 py-2.5 text-sm hover:brightness-105"
-                    >
-                      Set up an event
-                    </Link>
+                    <div className="mt-4 flex flex-wrap justify-center gap-3">
+                      <Link
+                        href="/contacts/new"
+                        className="rounded-full bg-porch text-night font-semibold px-5 py-2.5 text-sm hover:brightness-105"
+                      >
+                        Add a contact
+                      </Link>
+                      <Link
+                        href="/events"
+                        className="rounded-full border border-rule px-5 py-2.5 text-sm hover:bg-paper-2"
+                      >
+                        Set up an event
+                      </Link>
+                    </div>
                   )}
                 </td>
               </tr>

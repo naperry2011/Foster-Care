@@ -55,7 +55,7 @@ export default async function ArizonaPage() {
     .filter((m) => m?.unpublishedNote);
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-8">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <PageHeader
         eyebrow="the ground you're recruiting on"
         title="Arizona"

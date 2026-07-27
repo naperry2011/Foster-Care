@@ -16,7 +16,7 @@ export default function AppError({
   }, [error]);
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-20 text-center">
+    <main className="max-w-2xl mx-auto px-4 sm:px-6 py-20 text-center">
       <span className="inline-block w-3 h-3 rounded-full bg-clay mb-5" />
       <h1 className="font-display text-3xl font-semibold">
         That didn&apos;t load.

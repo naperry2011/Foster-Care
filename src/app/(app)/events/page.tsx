@@ -4,7 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { SOURCE_KINDS, SOURCE_KIND_LABELS, type SourceKind } from "@/lib/stages";
 import { createSource } from "./actions";
 
-export default async function EventsPage() {
+export default async function EventsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string }>;
+}) {
+  const { deleted } = await searchParams;
   const supabase = await createClient();
 
   const { data: sources } = await supabase
@@ -14,12 +19,18 @@ export default async function EventsPage() {
 
   return (
     <>
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <PageHeader
           eyebrow="every Saturday you spend"
           title="Sources &amp; events"
           description="A church fair, a partner, an ad. Name it here and every person you meet there carries that origin forever."
         />
+
+        {deleted && (
+          <p className="mt-4 rounded-xl border border-sage/40 bg-sage-tint px-4 py-3 text-sm text-[#2F5347]">
+            That source has been deleted.
+          </p>
+        )}
 
         <form
           action={createSource}

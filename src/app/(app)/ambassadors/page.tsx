@@ -39,7 +39,7 @@ export default async function AmbassadorsPage() {
 
   return (
     <>
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <PageHeader
           eyebrow="families invite families"
           title="Ambassadors"

@@ -38,6 +38,46 @@ export async function createSource(formData: FormData) {
   redirect(`/events/${data.id}`);
 }
 
+// Deleting a source is deliberately narrow. The ledger's denominators are the
+// whole argument of this product, so a source that has ever captured somebody
+// stays forever — even after those contacts are erased, because delete_contact()
+// keeps the source and its cost on purpose (ADR-007). What this removes is the
+// mistyped event and the one created while trying the product out.
+//
+// The refusal is enforced by the database, not here: contact.source_id has no
+// ON DELETE clause, so Postgres raises 23503 if any contact still points at it.
+// This function turns that into a sentence a recruiter can act on.
+export async function deleteSource(formData: FormData) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const id = String(formData.get("source_id") ?? "");
+  if (!id) return;
+
+  // .select() so a delete that matched nothing (wrong id, other agency, RLS)
+  // reports "not found" instead of claiming success.
+  const { data, error } = await supabase
+    .from("source")
+    .delete()
+    .eq("id", id)
+    .eq("agency_id", user.agencyId)
+    .select("id");
+
+  if (error) {
+    if (error.code === "23503") {
+      redirect(`/events/${id}?error=has_contacts`);
+    }
+    throw error;
+  }
+  if (!data?.length) {
+    redirect(`/events/${id}?error=not_found`);
+  }
+
+  revalidatePath("/events");
+  revalidatePath("/ledger");
+  redirect("/events?deleted=1");
+}
+
 // Recruiter quick-add: contact created in seconds while standing at a table.
 // Goes through the quick_add_contact RPC so the contact and its stage_change
 // row are written in one transaction — the app can't create a contact whose

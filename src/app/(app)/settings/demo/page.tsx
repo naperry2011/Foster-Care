@@ -21,7 +21,7 @@ export default async function DemoSettingsPage() {
   const seeded = (contacts ?? 0) > 0;
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-10">
+    <main className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
       <Link href="/settings" className="text-sm text-sage hover:underline">
         ← Settings
       </Link>

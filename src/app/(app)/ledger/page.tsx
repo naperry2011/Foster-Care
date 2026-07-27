@@ -85,7 +85,7 @@ export default async function LedgerPage() {
 
   return (
     <>
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <PageHeader
           eyebrow="which Saturdays became homes"
           title="The attribution ledger"
@@ -104,7 +104,7 @@ export default async function LedgerPage() {
         />
 
         {/* leading indicators — the numbers that exist before the lag closes */}
-        <div className="grid gap-4 sm:grid-cols-4 mt-8">
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 mt-8">
           <StatTile value={totals.captured} label="Captured" />
           <StatTile value={totals.warm} label="Still warm" tone="porch" />
           <StatTile value={totals.inquiries} label="Inquiries" />
@@ -116,7 +116,82 @@ export default async function LedgerPage() {
           />
         </div>
 
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-rule bg-white">
+        {/* Seven columns will not sit on a phone. Each source becomes a card
+            below md, with the two numbers that carry the argument up top. */}
+        <ul className="mt-6 md:hidden space-y-3 print:hidden">
+          {rows.map((r) => (
+            <li
+              key={r.id}
+              className="rounded-2xl border border-rule bg-white p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-medium">{r.name}</div>
+                  <div className="text-xs text-muted mt-0.5">
+                    {SOURCE_KIND_LABELS[r.kind]} · ${r.cost.toFixed(0)} +{" "}
+                    {r.hours}h
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div
+                    className={`font-mono text-lg ${
+                      r.licensed > 0 ? "text-sage font-semibold" : "text-muted"
+                    }`}
+                  >
+                    {r.licensed}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted">
+                    licensed
+                  </div>
+                </div>
+              </div>
+              <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+                {[
+                  ["Captured", String(r.captured)],
+                  ["Warm", String(r.warm)],
+                  ["Inquiries", String(r.inquiries)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg bg-paper-2 py-2">
+                    <dd className="font-mono text-sm">{value}</dd>
+                    <dt className="text-[11px] text-muted">{label}</dt>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-2 flex justify-between text-xs text-muted">
+                <span>
+                  Median lag {r.lagMonths != null ? `${r.lagMonths.toFixed(0)} mo` : "—"}
+                </span>
+                <span>
+                  Cost / home{" "}
+                  {r.costPerHome != null
+                    ? r.costPerHome === 0
+                      ? `$0 + ${r.hoursPerHome?.toFixed(1)}h`
+                      : `$${r.costPerHome.toFixed(0)}`
+                    : "—"}
+                </span>
+              </div>
+            </li>
+          ))}
+          {rows.length === 0 && (
+            <li className="rounded-2xl border border-rule bg-white px-4 py-10 text-center">
+              <p className="font-hand text-2xl text-ink/70">
+                the ledger is still empty
+              </p>
+              <p className="text-sm text-muted mt-1">
+                It fills in as you capture people and confirm the homes they
+                become.
+              </p>
+              <Link
+                href="/ledger/backfill"
+                className="inline-block mt-4 rounded-full bg-porch text-night font-semibold px-5 py-2.5 text-sm"
+              >
+                Backfill a home you licensed
+              </Link>
+            </li>
+          )}
+        </ul>
+
+        <div className="mt-6 hidden md:block print:block overflow-x-auto rounded-2xl border border-rule bg-white">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-rule">

@@ -6,7 +6,7 @@ export default async function SettingsPage() {
   const user = await requireUser();
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-10">
+    <main className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
       <p className="font-hand text-2xl text-clay">your porch</p>
       <h1 className="font-display text-3xl font-semibold mt-1">Agency settings</h1>
 

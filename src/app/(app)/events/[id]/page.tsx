@@ -1,16 +1,20 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { notFound } from "next/navigation";
+import DeleteSource from "@/components/DeleteSource";
 import { createClient } from "@/lib/supabase/server";
 import { STAGE_LABELS, type Stage } from "@/lib/stages";
 import { quickAddContact } from "../actions";
 
 export default async function EventPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { id } = await params;
+  const { error } = await searchParams;
   const supabase = await createClient();
 
   const { data: source } = await supabase
@@ -36,7 +40,7 @@ export default async function EventPage({
 
   return (
     <>
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <Link href="/events" className="text-sm text-sage hover:underline">
           ← All sources
         </Link>
@@ -46,6 +50,14 @@ export default async function EventPage({
         <p className="text-muted text-sm mt-1">
           {source.occurred_on ?? ""} {source.location ? `· ${source.location}` : ""}
         </p>
+
+        {error && (
+          <p className="mt-4 rounded-xl border border-clay/40 bg-clay-tint px-4 py-3 text-sm">
+            {error === "has_contacts"
+              ? "This source can't be deleted: people were captured here, and their attribution is part of your ledger."
+              : "That source could not be found."}
+          </p>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-2 mt-8">
           <div className="rounded-2xl border border-rule bg-white p-6 text-center">
@@ -108,18 +120,21 @@ export default async function EventPage({
         <ul className="divide-y divide-rule rounded-2xl border border-rule bg-white overflow-hidden">
           {(contacts ?? []).map((c) => (
             <li key={c.id} className="px-5 py-3 flex items-center justify-between gap-3">
-              <div>
+              {/* min-w-0 so a long email can shrink. Without it the flex item
+                  keeps its intrinsic width and shoves the stage pill past the
+                  right edge, where the list's overflow-hidden clips it. */}
+              <div className="min-w-0">
                 <Link
                   href={`/contacts/${c.id}`}
-                  className="font-medium hover:text-sage hover:underline"
+                  className="font-medium hover:text-sage hover:underline block truncate"
                 >
                   {c.first_name || c.phone || c.email}
                 </Link>
-                <span className="text-sm text-muted ml-2">
+                <span className="text-sm text-muted block truncate">
                   {c.phone ?? c.email ?? ""}
                 </span>
               </div>
-              <span className="text-xs rounded-full bg-paper-2 border border-rule px-3 py-1">
+              <span className="text-xs rounded-full bg-paper-2 border border-rule px-3 py-1 shrink-0">
                 {STAGE_LABELS[c.stage as Stage]}
               </span>
             </li>
@@ -131,6 +146,20 @@ export default async function EventPage({
             </li>
           )}
         </ul>
+
+        <div className="mt-10 rounded-2xl border border-clay/40 bg-clay-tint/50 p-5">
+          <h3 className="font-display font-semibold">Delete this source</h3>
+          <p className="text-sm text-ink/70 mt-1 mb-3">
+            For a typo or a source you created while trying things out. Once
+            somebody has been captured here, it stays, because your cost per
+            licensed home is measured against it.
+          </p>
+          <DeleteSource
+            sourceId={source.id}
+            name={source.name}
+            captured={contacts?.length ?? 0}
+          />
+        </div>
       </main>
     </>
   );

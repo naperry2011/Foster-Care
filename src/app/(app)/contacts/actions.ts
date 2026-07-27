@@ -4,8 +4,74 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import type { Stage } from "@/lib/stages";
+import { makeSlug } from "@/lib/slug";
+import type { Stage, SourceKind } from "@/lib/stages";
 import type { TouchChannel } from "@/lib/timeline";
+
+// Adding a contact from anywhere other than an event page.
+//
+// Every contact needs a source: contact.source_id is NOT NULL and immutable by
+// trigger, which is the constraint the whole ledger rests on. So this asks
+// rather than assuming. There is deliberately no catch-all "direct" bucket that
+// would quietly absorb people who actually came from somewhere, because a
+// source you can't name is the shoebox of business cards this product exists to
+// replace.
+export async function addContact(formData: FormData) {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const phone = String(formData.get("phone") ?? "").trim() || null;
+  const email = String(formData.get("email") ?? "").trim() || null;
+  const firstName = String(formData.get("first_name") ?? "").trim() || null;
+  const lastName = String(formData.get("last_name") ?? "").trim() || null;
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const consented = formData.get("consent") === "on";
+
+  if (!phone && !email) redirect("/contacts/new?error=reachable");
+
+  // "＋ New source" in the picker sends the sentinel and a name alongside it.
+  let sourceId = String(formData.get("source_id") ?? "");
+  if (sourceId === "__new__") {
+    const newName = String(formData.get("new_source_name") ?? "").trim();
+    if (!newName) redirect("/contacts/new?error=source_name");
+    const kind = (String(formData.get("new_source_kind") ?? "walk_in") ||
+      "walk_in") as SourceKind;
+
+    const { data: created, error: srcErr } = await supabase
+      .from("source")
+      .insert({
+        agency_id: user.agencyId,
+        kind,
+        name: newName,
+        slug: makeSlug(newName),
+        owner_user_id: user.id,
+      })
+      .select("id")
+      .single();
+    if (srcErr) throw srcErr;
+    sourceId = created.id;
+  }
+  if (!sourceId) redirect("/contacts/new?error=source");
+
+  // Same RPC the event page uses, so the contact and its first stage_change are
+  // written in one transaction and the agency check happens in the database.
+  const { data: contactId, error } = await supabase.rpc("quick_add_contact", {
+    p_source_id: sourceId,
+    p_phone: phone,
+    p_email: email,
+    p_first_name: firstName,
+    p_last_name: lastName,
+    p_consent_email: consented && !!email,
+    p_consent_sms: consented && !!phone,
+    p_notes: notes,
+  });
+  if (error) throw error;
+
+  revalidatePath("/contacts");
+  revalidatePath("/board");
+  revalidatePath("/events");
+  redirect(`/contacts/${contactId}`);
+}
 
 // All stage moves route through the set_contact_stage() RPC so the
 // append-only stage_change log can never be skipped.

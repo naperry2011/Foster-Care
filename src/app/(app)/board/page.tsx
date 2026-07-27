@@ -25,20 +25,35 @@ export default async function BoardPage() {
 
   return (
     <>
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <PageHeader
           eyebrow="where everyone stands"
           title="Stage board"
           description="“Not yet” is a holding lane, not a rejection — every card there carries a wake-up date, and the system shows up on the day they picked."
+          actions={
+            <Link
+              href="/contacts/new"
+              className="rounded-full bg-porch text-night font-semibold px-5 py-2.5 text-sm hover:brightness-105"
+            >
+              Add contact
+            </Link>
+          }
         />
-        <div className="mt-8 grid gap-4 md:grid-cols-5 items-start">
+        {/* Below md the five lanes swipe sideways and keep their shape. Stacking
+            them vertically turns a board into a very long list, which is the one
+            thing a board is for not being. */}
+        <div
+          className="mt-8 flex gap-4 items-start overflow-x-auto snap-x snap-mandatory
+                     -mx-4 px-4 pb-3 sm:-mx-6 sm:px-6
+                     md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-5 md:overflow-visible"
+        >
           {BOARD_STAGES.map((s) => {
             const cards = byStage.get(s) ?? [];
             const isWaiting = s === "not_yet";
             return (
               <div
                 key={s}
-                className={`rounded-2xl border p-3 ${
+                className={`rounded-2xl border p-3 w-[78vw] shrink-0 snap-start md:w-auto md:shrink ${
                   isWaiting
                     ? "border-porch/60 bg-butter"
                     : "border-rule bg-paper-2/60"

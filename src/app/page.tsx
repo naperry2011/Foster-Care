@@ -112,7 +112,7 @@ export default async function Home() {
 
   return (
     <AppShell user={user}>
-      <main className="max-w-6xl mx-auto px-6 py-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
         <p className="font-hand text-2xl text-clay">
           {firstName ? `evening, ${firstName}` : "welcome back"}
         </p>

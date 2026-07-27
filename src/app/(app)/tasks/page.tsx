@@ -33,7 +33,7 @@ export default async function TasksPage() {
 
   return (
     <>
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <PageHeader
           eyebrow="the moments a human should step in"
           title="Tasks"

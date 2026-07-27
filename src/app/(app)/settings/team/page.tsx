@@ -32,7 +32,7 @@ export default async function TeamPage() {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-8">
+    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <Link href="/settings" className="text-sm text-sage hover:underline">
         ← Settings
       </Link>
