@@ -89,7 +89,12 @@ export async function sendNurtureEmail(
   }
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  // Two different URLs on purpose. The body link goes to the page, which asks
+  // before opting anyone out, so a mail scanner following it changes nothing.
+  // The header points at the POST-only endpoint, which is what Gmail and
+  // Outlook call for their built-in unsubscribe button (RFC 8058).
   const unsubscribeUrl = `${base}/u/${contact.id}`;
+  const oneClickUrl = `${base}/api/unsubscribe/${contact.id}`;
   const body = template.body
     .replaceAll("{{first_name}}", contact.first_name ?? "there")
     .replaceAll("{{unsubscribe_url}}", `Unsubscribe anytime: ${unsubscribeUrl}`);
@@ -102,7 +107,8 @@ export async function sendNurtureEmail(
       subject: template.subject,
       text: body,
       headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe": `<${oneClickUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
     });
     if (error) throw error;
