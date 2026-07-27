@@ -11,7 +11,7 @@ Lockfile v3, 477 package entries, 442 total installed packages.
 |---|---|---|---|
 | `@supabase/ssr` | `^0.12.0` | 0.12.0 | Cookie-based Supabase auth for server components and the request proxy |
 | `@supabase/supabase-js` | `^2.110.2` | 2.110.2 | PostgREST, auth and RPC client |
-| `next` | `16.2.10` | 16.2.10 | Framework: App Router, server actions, API routes |
+| `next` | `16.2.12` | 16.2.12 | Framework: App Router, server actions, API routes |
 | `qrcode` | `^1.5.4` | 1.5.4 | QR generation for capture links |
 | `react` | `19.2.4` | 19.2.4 | UI runtime |
 | `react-dom` | `19.2.4` | 19.2.4 | DOM renderer |
@@ -31,7 +31,7 @@ Production transitive closure: 62 packages, plus 86 optional platform binaries
 | `@types/react` | `^19` | 19.2.17 | React typings |
 | `@types/react-dom` | `^19` | 19.2.3 | React DOM typings |
 | `eslint` | `^9` | 9.39.5 | Linter |
-| `eslint-config-next` | `16.2.10` | 16.2.10 | Next core-web-vitals and TypeScript presets |
+| `eslint-config-next` | `16.2.12` | 16.2.12 | Next core-web-vitals and TypeScript presets |
 | `tailwindcss` | `^4` | 4.3.2 | CSS engine |
 | `typescript` | `^5` | 5.9.3 | Type checker |
 | `xlsx` | tarball URL | 0.20.3 | SheetJS, used only by `scripts/az-stats-import.mjs` |
@@ -42,7 +42,7 @@ Dev transitive closure: 380 packages.
 
 **Unpinned (`*`, `any`, `latest`): none.** Good.
 
-**Exact-pinned without caret:** `next` and `eslint-config-next` at `16.2.10`,
+**Exact-pinned without caret:** `next` and `eslint-config-next` at `16.2.12`,
 `react` and `react-dom` at `19.2.4`. Intentional and correct for the framework
 triad. The consequence is that the patch releases fixing the advisories in section
 5 will not arrive through `npm update`; `package.json` has to be edited by hand.
@@ -88,38 +88,49 @@ Patch or minor drift on everything, plus three major gaps:
 | `typescript` | 5.9.3 | 7.0.2 | 2 majors |
 | `eslint` | 9.39.5 | 10.8.0 | 1 major |
 
-Available without a major bump: `next` and `eslint-config-next` 16.2.10 to
-**16.2.12**, `react` and `react-dom` 19.2.4 to 19.2.8, `@supabase/ssr` 0.12.3,
-`@supabase/supabase-js` 2.110.8, `resend` 6.18.0, `tailwindcss` 4.3.3.
+Available without a major bump, still outstanding: `react` and `react-dom` 19.2.4
+to 19.2.8, `@supabase/ssr` 0.12.3, `@supabase/supabase-js` 2.110.8, `resend`
+6.18.0, `tailwindcss` 4.3.3. (`next` and `eslint-config-next` were taken to
+16.2.12 on 2026-07-26.)
 
 ## 5. Vulnerabilities (`npm audit`)
 
-**12 high, 0 critical, 0 moderate, 0 low.** Three root causes.
+> **Corrected 2026-07-26.** This section originally attributed nine advisories to
+> Next.js itself, including a middleware bypass, and claimed the 16.2.12 bump would
+> clear 11 of 12. Both claims were wrong. The bump was applied; the count did not
+> move. What follows is transcribed from `npm audit --json`.
 
-**`next` 16.2.10 (direct, production), 9 advisories.** Middleware and proxy bypass
-in App Router under Turbopack with a single locale; SSRF in server actions on
-custom servers and in rewrites; two response-body cache-confusion issues; denial of
-service via server actions and via the SVG image-optimization path; unbounded edge
-server-action payloads; and unauthenticated disclosure of internal server-function
-endpoints. **All fixed in 16.2.12, a non-breaking patch.**
+**12 high, 0 critical, 0 moderate, 0 low, at `next@16.2.12`. Every one is
+transitive. There is no advisory against Next.js code.**
 
-This is the single highest-value action in the audit. Porchlight's entire
-unauthenticated-access boundary is `src/proxy.ts`, so the middleware-bypass
-advisory lands directly on the app's auth gate, and the endpoint-disclosure
-advisory lands on a multi-tenant app holding named PII. See F-001.
+**Three carried by `next` from its bundled build tools:**
 
-The same bump also clears the transitive advisories in `postcss` (XSS plus two
-`sourceMappingURL` path-traversal issues) and `sharp` (four inherited libvips CVEs).
+| Package | Range | Advisories |
+|---|---|---|
+| `postcss` | `<=8.5.17` | XSS via unescaped `</style>` in stringify output; arbitrary file read via attacker-controlled `sourceMappingURL`; path traversal in previous-source-map auto-loading |
+| `sharp` | `<0.35.0` | Four inherited libvips CVEs (2026-33327, 33328, 35590, 35591) |
+| `next` | `9.3.4-canary.0 - 16.3.0-preview.7` | Listed only with `via: [postcss, sharp]` |
 
-**eslint toolchain, dev only.** `eslint`, `@eslint/config-array`, `@eslint/eslintrc`,
-`brace-expansion`, `minimatch`. Clearing these needs an eslint 9 to 10 migration.
+Note the `next` range still includes 16.2.12, which is why the bump changed
+nothing. npm's proposed fix is `next@9.3.3`, a five-major downgrade it suggests
+only because that version predates the range. Ignore it.
 
-**`eslint-config-next` toolchain, dev only.** Plus `eslint-plugin-import`,
-`eslint-plugin-jsx-a11y`, `eslint-plugin-react`. npm suggests "fixing" this by
-downgrading `eslint-config-next` to 0.2.4; that is resolver noise, ignore it.
+**Nine in the dev-only eslint chain**, all tracing to one root cause, a
+`brace-expansion` denial of service via unbounded expansion length:
+`eslint`, `@eslint/config-array`, `@eslint/eslintrc`, `eslint-plugin-import`,
+`eslint-plugin-jsx-a11y`, `eslint-plugin-react`, `eslint-config-next`, `minimatch`,
+`brace-expansion`. The real fix is eslint 10, a major. npm also proposes
+`eslint-config-next@0.2.4` here, which is the same downgrade artifact.
 
-**Practical order:** hand-edit `next` and `eslint-config-next` to `16.2.12`, which
-clears 11 of 12. The remainder is dev-only and needs a coordinated eslint major.
+**Reachability.** None of the twelve is reachable from an anonymous request.
+`postcss` compiles the project's own Tailwind at build time. `sharp` backs
+`next/image`, and Porchlight optimizes no user-supplied images. The eslint chain
+never ships. Treat the headline count as maintenance signal, not risk.
+
+**Practical order:** the `16.2.12` bump is applied and worth keeping for its
+upstream patches, but it is not a security action. `postcss` and `sharp` resolve
+when Next ships them patched; do not force an override under `next/image`. Schedule
+eslint 9 to 10 as ordinary maintenance. See F-001.
 
 ## 6. Notable absences
 

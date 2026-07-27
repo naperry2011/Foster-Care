@@ -9,41 +9,61 @@ Security & Compliance · Operational Readiness · Design & Abstraction.
 
 ---
 
-## F-001: The framework is one patch behind a bypass of the app's own auth gate (High / Security & Compliance)
+## F-001: Twelve high advisories, all transitive, none in Next.js itself (Low / Operational Readiness)
 
-**Verification:** VERIFIED
+**Verification:** VERIFIED. **Corrected 2026-07-26 after applying the bump.**
+
+> **Correction.** The first issue of this register rated this finding High and
+> described nine Next.js advisories including an App Router middleware bypass and
+> unauthenticated server-function endpoint disclosure. That was wrong. No such
+> advisories appear in `npm audit` output. The bump to `16.2.12` was applied and
+> the count did not move, because `next` is flagged only as a carrier for its
+> bundled `postcss` and `sharp`. The finding is restated below from the actual
+> output, and the severity drops from High to Low. Nothing in the register
+> depended on the incorrect version except the Horizon 1 ordering in `report.md`,
+> which has been re-sequenced.
 
 **Evidence:**
-- `package.json:14`. `next` is pinned exactly at `16.2.10`.
-- `npm audit` reports 12 high-severity advisories and zero at any other level. Nine
-  are in `next` itself; the rest are transitive through `postcss` and `sharp` and
-  clear with the same bump.
-- The nine include a middleware and proxy bypass in App Router under Turbopack,
-  unauthenticated disclosure of internal server-function endpoints, SSRF in server
-  actions and in rewrites, two response-body cache-confusion issues, and two denial
-  of service paths.
-- `src/proxy.ts:47-57` is the app's only pre-request authentication boundary. A
-  middleware-bypass advisory lands directly on it.
-- Fixed in `16.2.12`, a patch release with no breaking changes.
+- `npm audit --json` at `next@16.2.12` reports **12 high, 0 critical, 0 moderate,
+  0 low**. Every one is transitive; none is a vulnerability in Next.js code.
+- **Three are build-toolchain, carried by `next`:** `postcss` (`<=8.5.17`, XSS via
+  unescaped `</style>` in stringify output, plus two `sourceMappingURL`
+  path-traversal and arbitrary-file-read issues) and `sharp` (`<0.35.0`, four
+  inherited libvips CVEs). `next` itself appears only with
+  `via: [postcss, sharp]`.
+- **Nine are the dev-only eslint chain:** `eslint`, `@eslint/config-array`,
+  `@eslint/eslintrc`, `eslint-plugin-import`, `eslint-plugin-jsx-a11y`,
+  `eslint-plugin-react`, `eslint-config-next`, `minimatch`, `brace-expansion`.
+  All trace to one root cause, a `brace-expansion` denial of service via unbounded
+  expansion length.
+- npm's suggested remediations are both nonsense: `next@9.3.3` and
+  `eslint-config-next@0.2.4`. Neither is a fix; both are catastrophic downgrades
+  that npm proposes because they predate the vulnerable ranges.
 
-**Impact:** Porchlight is a multi-tenant application holding named contact details
-for prospective foster parents, and its unauthenticated-access boundary is the
-proxy the advisory targets. `requireUser()` re-checks on every page, and RLS
-re-checks at the database, so a bypass alone does not hand over data. But the
-defense-in-depth argument the architecture rests on is weakened at its outermost
-layer, and the cache-confusion and endpoint-disclosure items apply to a live
-production deployment today.
+**Impact:** Materially lower than first stated. `postcss` processes the project's
+own Tailwind CSS at build time and never sees user input. `sharp` backs
+`next/image` optimization, and Porchlight optimizes no user-supplied images (the
+one raw `<img>` at `events/[id]/page.tsx` is a locally generated QR data URL, and
+`opengraph-image` is static). The eslint chain never ships and runs only when a
+developer invokes it. There is no path here from an anonymous request to any of
+these, which is the opposite of what the previous wording implied.
 
 **Recommendation:**
-1. Edit `package.json` to `"next": "16.2.12"` and `"eslint-config-next": "16.2.12"`.
-   Both are exact pins, so `npm update` will not do it.
-2. Run `npm install`, `npx tsc --noEmit`, `npm run build`, then
-   `node scripts/anon-audit.mjs .env.local` and `node scripts/smoke-test.mjs .env.local`
-   before deploying.
-3. Take the free minors at the same time: `react` and `react-dom` to 19.2.8,
-   `@supabase/ssr` to 0.12.3, `@supabase/supabase-js` to 2.110.8.
-4. Set a standing reminder to run `npm audit` before each deploy until CI exists
-   (F-008).
+1. **Done:** `next` and `eslint-config-next` moved from `16.2.10` to `16.2.12`.
+   Typecheck, lint and build all stayed green. Keep it: two patch releases of
+   upstream fixes for no cost, even though it cleared no advisory.
+2. For `postcss` and `sharp`, wait. They resolve when Next ships a release
+   bundling patched versions. Do not attempt an override; a forced `sharp` bump
+   under `next/image` is a good way to break image optimization for no real gain.
+3. For the eslint chain, schedule the eslint 9 to 10 migration as ordinary
+   maintenance, not as a security task.
+4. Re-run `npm audit` before each deploy until CI does it (F-008), and read the
+   `via` chain rather than the headline count. A total of "12 high" on this
+   project has so far meant zero reachable vulnerabilities.
+
+**Process note.** This finding was originally written from a summary that was not
+checked against raw `npm audit` output. Advisory counts and titles belong in an
+audit only when copied from the tool, not paraphrased.
 
 ---
 
@@ -760,23 +780,33 @@ forceable in minutes against an endpoint with no rate limit.
 | Severity | Count | IDs |
 |---|---:|---|
 | Critical | 0 | none |
-| High | 4 | F-001, F-002, F-003, F-004 |
+| High | 3 | F-002, F-003, F-004 |
 | Medium | 10 | F-005, F-006, F-007, F-008, F-009, F-010, F-011, F-012, F-013, F-014 |
-| Low | 6 | F-015, F-016, F-017, F-018, F-019, F-020 |
+| Low | 7 | F-001, F-015, F-016, F-017, F-018, F-019, F-020 |
 | Informational | 1 | F-021 |
 | **Total** | **21** | |
+
+F-001 was High in the first issue and is now Low; see the correction in its entry.
 
 ## By dimension
 
 | Dimension | High | Medium | Low | IDs |
 |---|---:|---:|---:|---|
-| Security & Compliance | 2 | 4 | 1 | F-001, F-003, F-005, F-006, F-007, F-010, F-020 |
+| Security & Compliance | 1 | 4 | 1 | F-003, F-005, F-006, F-007, F-010, F-020 |
 | Bugs & Stability | 2 | 0 | 0 | F-002, F-004 |
-| Operational Readiness | 0 | 3 | 2 | F-008, F-009, F-011, F-015, F-016 |
+| Operational Readiness | 0 | 3 | 3 | F-001, F-008, F-009, F-011, F-015, F-016 |
 | Design & Abstraction | 0 | 3 | 0 | F-012, F-013, F-014 |
 | Code Quality | 0 | 0 | 2 | F-018, F-019 |
 | Git Hygiene | 0 | 0 | 1 | F-017 |
 | Contributor | 0 | 0 | 0 | see `git_analysis.md` section 10 |
+
+## Status since the first issue (2026-07-26)
+
+| Finding | Status |
+|---|---|
+| F-001 | Bump applied; finding corrected and downgraded to Low |
+| F-016 | Closed. `v0.6.0` tagged at `456d391` and pushed |
+| Add-contact gap, source deletion, mobile layout | Shipped in `456d391`, verified at 375px. Not audit findings; reported by the owner from using the product |
 
 ---
 generated_by: codebase-audit skill v1.1
