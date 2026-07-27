@@ -5,76 +5,57 @@ import StatTile from "@/components/ui/StatTile";
 import { createClient } from "@/lib/supabase/server";
 import { SOURCE_KIND_LABELS, type SourceKind } from "@/lib/stages";
 
-const WARM_STAGES = ["curious", "considering", "not_yet"];
-
-function median(nums: number[]): number | null {
-  if (!nums.length) return null;
-  const s = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
+// The aggregation lives in Postgres (migration 0012). It used to read every
+// source, contact, outcome and stage_change into memory and count them here,
+// which hit Supabase's 1000-row cap silently and scanned contacts once per
+// source. Both are gone; this file now only formats.
+type LedgerRow = {
+  source_id: string;
+  name: string;
+  kind: SourceKind;
+  cost_cents: number;
+  hours_invested: number | string;
+  captured: number;
+  warm: number;
+  inquiries: number;
+  licensed: number;
+  lag_months: number | string | null;
+};
 
 export default async function LedgerPage() {
   const supabase = await createClient();
 
-  const [{ data: sources }, { data: contacts }, { data: outcomes }, { data: notYetEvents }] =
-    await Promise.all([
-      supabase.from("source").select("id, name, kind, cost_cents, hours_invested"),
-      supabase
-        .from("contact")
-        .select("id, source_id, stage, captured_at, opted_out_at"),
-      supabase.from("outcome").select("contact_id, licensed_on"),
-      supabase.from("stage_change").select("contact_id").eq("to_stage", "not_yet"),
-    ]);
+  const [{ data: ledgerRows }, { data: waiting }] = await Promise.all([
+    supabase.rpc("ledger_rows"),
+    supabase.rpc("ledger_waiting_room"),
+  ]);
 
-  const outcomeByContact = new Map(
-    (outcomes ?? []).map((o) => [o.contact_id, o.licensed_on])
-  );
-
-  const rows = (sources ?? [])
-    .map((s) => {
-      const mine = (contacts ?? []).filter((c) => c.source_id === s.id);
-      const captured = mine.length;
-      const warm = mine.filter(
-        (c) => WARM_STAGES.includes(c.stage) && !c.opted_out_at
-      ).length;
-      const inquiries = mine.filter((c) =>
-        ["inquiry", "licensed"].includes(c.stage)
-      ).length;
-      const licensedContacts = mine.filter((c) => outcomeByContact.has(c.id));
-      const licensed = licensedContacts.length;
-      const lagMonths = median(
-        licensedContacts.map((c) => {
-          const cap = new Date(c.captured_at).getTime();
-          const lic = new Date(outcomeByContact.get(c.id)!).getTime();
-          return (lic - cap) / (1000 * 60 * 60 * 24 * 30.4);
-        })
-      );
-      const costPerHome = licensed > 0 ? s.cost_cents / 100 / licensed : null;
-      const hoursPerHome =
-        licensed > 0 ? Number(s.hours_invested) / licensed : null;
-      return {
-        id: s.id,
-        name: s.name,
-        kind: s.kind as SourceKind,
-        cost: s.cost_cents / 100,
-        hours: Number(s.hours_invested),
-        captured,
-        warm,
-        inquiries,
-        licensed,
-        lagMonths,
-        costPerHome,
-        hoursPerHome,
-      };
-    })
-    .sort((a, b) => b.licensed - a.licensed || b.warm - a.warm);
+  const rows = ((ledgerRows ?? []) as LedgerRow[]).map((r) => {
+    const licensed = Number(r.licensed);
+    const cost = r.cost_cents / 100;
+    const hours = Number(r.hours_invested);
+    return {
+      id: r.source_id,
+      name: r.name,
+      kind: r.kind,
+      cost,
+      hours,
+      captured: Number(r.captured),
+      warm: Number(r.warm),
+      inquiries: Number(r.inquiries),
+      licensed,
+      lagMonths: r.lag_months == null ? null : Number(r.lag_months),
+      costPerHome: licensed > 0 ? cost / licensed : null,
+      hoursPerHome: licensed > 0 ? hours / licensed : null,
+    };
+  });
 
   // waiting-room yield: of everyone who ever entered not_yet, how many licensed?
-  const everNotYet = new Set((notYetEvents ?? []).map((e) => e.contact_id));
-  const notYetLicensed = [...everNotYet].filter((id) =>
-    outcomeByContact.has(id)
-  ).length;
+  const wr = (waiting ?? [])[0] as
+    | { ever_not_yet: number | string; not_yet_licensed: number | string }
+    | undefined;
+  const everNotYetCount = Number(wr?.ever_not_yet ?? 0);
+  const notYetLicensed = Number(wr?.not_yet_licensed ?? 0);
 
   const totals = {
     captured: rows.reduce((n, r) => n + r.captured, 0),
@@ -259,7 +240,7 @@ export default async function LedgerPage() {
           </table>
         </div>
 
-        {everNotYet.size > 0 && (
+        {everNotYetCount > 0 && (
           <div className="mt-6 rounded-2xl border-l-4 border-sage bg-sage-tint p-6">
             <p className="font-display text-xl font-semibold text-[#2F5347]">
               {notYetLicensed > 0 ? (
@@ -270,8 +251,8 @@ export default async function LedgerPage() {
                 </>
               ) : (
                 <>
-                  {everNotYet.size}{" "}
-                  {everNotYet.size === 1 ? "person is" : "people are"}{" "}
+                  {everNotYetCount}{" "}
+                  {everNotYetCount === 1 ? "person is" : "people are"}{" "}
                   being held warm right now.
                 </>
               )}
@@ -280,8 +261,8 @@ export default async function LedgerPage() {
               {notYetLicensed > 0 ? (
                 <>
                   Without a waiting room, every one of them would have been
-                  lost. {everNotYet.size} people have been held so far, and{" "}
-                  {Math.round((notYetLicensed / everNotYet.size) * 100)}% of
+                  lost. {everNotYetCount} people have been held so far, and{" "}
+                  {Math.round((notYetLicensed / everNotYetCount) * 100)}% of
                   them have become homes.
                 </>
               ) : (

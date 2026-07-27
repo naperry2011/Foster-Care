@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/admin";
 import { verifySystemSecret } from "@/lib/system-auth";
+import { fetchAll } from "@/lib/fetch-all";
 import { sendNurtureEmail, type NurtureContact, type Template } from "@/lib/send";
 
 export const maxDuration = 300;
@@ -30,14 +31,20 @@ export async function GET(request: Request) {
   // ---- 1. wake-ups ----
   // The date the recruiter chose is kept forever — it's the promise we made.
   // wake_up_fired_at is what stops the task from firing twice.
-  const { data: waking } = await admin
-    .from("contact")
-    .select("id, agency_id, first_name, last_name, phone, email, wake_up_on")
-    .eq("stage", "not_yet")
-    .is("opted_out_at", null)
-    .is("wake_up_fired_at", null)
-    .lte("wake_up_on", today);
-  for (const c of waking ?? []) {
+  const waking = await fetchAll(
+    (from, to) =>
+      admin
+        .from("contact")
+        .select("id, agency_id, first_name, last_name, phone, email, wake_up_on")
+        .eq("stage", "not_yet")
+        .is("opted_out_at", null)
+        .is("wake_up_fired_at", null)
+        .lte("wake_up_on", today)
+        .order("id")
+        .range(from, to),
+    "wake-ups"
+  );
+  for (const c of waking) {
     const name =
       [c.first_name, c.last_name].filter(Boolean).join(" ") ||
       c.phone ||
@@ -57,10 +64,16 @@ export async function GET(request: Request) {
   }
 
   // ---- load templates once (global defaults; agency overrides win) ----
-  const { data: templates } = await admin
-    .from("nurture_template")
-    .select("*")
-    .eq("active", true);
+  const templates = await fetchAll(
+    (from, to) =>
+      admin
+        .from("nurture_template")
+        .select("*")
+        .eq("active", true)
+        .order("id")
+        .range(from, to),
+    "templates"
+  );
   const templatesFor = (agencyId: string, stage: string) => {
     const all = (templates ?? []).filter((t) => t.stage === stage);
     const own = all.filter((t) => t.agency_id === agencyId);
@@ -71,18 +84,24 @@ export async function GET(request: Request) {
   };
 
   // ---- 2. stage-keyed nurture (curious, considering) ----
-  const { data: nurturable } = await admin
-    .from("contact")
-    .select(
-      "id, agency_id, email, first_name, consent_email, opted_out_at, automation_paused_at, stage"
-    )
-    .in("stage", ["curious", "considering"])
-    .eq("consent_email", true)
-    .is("opted_out_at", null)
-    .is("automation_paused_at", null)
-    .not("email", "is", null);
+  const nurturable = await fetchAll(
+    (from, to) =>
+      admin
+        .from("contact")
+        .select(
+          "id, agency_id, email, first_name, consent_email, opted_out_at, automation_paused_at, stage"
+        )
+        .in("stage", ["curious", "considering"])
+        .eq("consent_email", true)
+        .is("opted_out_at", null)
+        .is("automation_paused_at", null)
+        .not("email", "is", null)
+        .order("id")
+        .range(from, to),
+    "nurture"
+  );
 
-  for (const c of nurturable ?? []) {
+  for (const c of nurturable) {
     // when did they enter this stage?
     const { data: entry } = await admin
       .from("stage_change")
@@ -114,18 +133,24 @@ export async function GET(request: Request) {
   }
 
   // ---- 3. quarterly cadence for the waiting room ----
-  const { data: held } = await admin
-    .from("contact")
-    .select(
-      "id, agency_id, email, first_name, consent_email, opted_out_at, automation_paused_at, last_nurture_at, captured_at"
-    )
-    .eq("stage", "not_yet")
-    .eq("consent_email", true)
-    .is("opted_out_at", null)
-    .is("automation_paused_at", null)
-    .not("email", "is", null);
+  const held = await fetchAll(
+    (from, to) =>
+      admin
+        .from("contact")
+        .select(
+          "id, agency_id, email, first_name, consent_email, opted_out_at, automation_paused_at, last_nurture_at, captured_at"
+        )
+        .eq("stage", "not_yet")
+        .eq("consent_email", true)
+        .is("opted_out_at", null)
+        .is("automation_paused_at", null)
+        .not("email", "is", null)
+        .order("id")
+        .range(from, to),
+    "cadence"
+  );
 
-  for (const c of held ?? []) {
+  for (const c of held) {
     const t = templatesFor(c.agency_id, "not_yet")[0];
     if (!t) continue;
     const last = new Date(c.last_nurture_at ?? c.captured_at);
@@ -144,12 +169,18 @@ export async function GET(request: Request) {
   // ---- 4. cold flags: considering, silent for 30 days ----
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
-  const { data: considering } = await admin
-    .from("contact")
-    .select("id, agency_id, first_name, last_name, phone, email")
-    .eq("stage", "considering")
-    .is("opted_out_at", null);
-  for (const c of considering ?? []) {
+  const considering = await fetchAll(
+    (from, to) =>
+      admin
+        .from("contact")
+        .select("id, agency_id, first_name, last_name, phone, email")
+        .eq("stage", "considering")
+        .is("opted_out_at", null)
+        .order("id")
+        .range(from, to),
+    "cold flags"
+  );
+  for (const c of considering) {
     const { data: lastTouch } = await admin
       .from("touch")
       .select("occurred_at")
@@ -186,15 +217,24 @@ export async function GET(request: Request) {
   const month = today.slice(0, 7);
   const staleCutoff = new Date();
   staleCutoff.setDate(staleCutoff.getDate() - 60);
-  const { data: agencies } = await admin.from("agency").select("id");
-  for (const a of agencies ?? []) {
-    const { data: pending } = await admin
-      .from("contact")
-      .select("id, outcome(contact_id)")
-      .eq("agency_id", a.id)
-      .eq("stage", "inquiry")
-      .lte("captured_at", staleCutoff.toISOString());
-    const awaiting = (pending ?? []).filter(
+  const agencies = await fetchAll(
+    (from, to) => admin.from("agency").select("id").order("id").range(from, to),
+    "agencies"
+  );
+  for (const a of agencies) {
+    const pending = await fetchAll(
+      (from, to) =>
+        admin
+          .from("contact")
+          .select("id, outcome(contact_id)")
+          .eq("agency_id", a.id)
+          .eq("stage", "inquiry")
+          .lte("captured_at", staleCutoff.toISOString())
+          .order("id")
+          .range(from, to),
+      `outcome confirm ${a.id}`
+    );
+    const awaiting = pending.filter(
       (c) => !(c.outcome as unknown as unknown[])?.length
     ).length;
     if (awaiting === 0) continue;

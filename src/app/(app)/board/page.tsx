@@ -7,6 +7,12 @@ import { BOARD_STAGES, STAGE_LABELS, type Stage } from "@/lib/stages";
 export default async function BoardPage() {
   const supabase = await createClient();
 
+  // The board deliberately keeps a cap where the ledger and cron do not: this
+  // renders a DOM node per contact, so "all of them" stops being a kindness
+  // somewhere north of a few thousand cards. The difference from before is
+  // that the cap is now visible on the page (below) instead of the page just
+  // quietly ending. See audit F-002.
+  const BOARD_CAP = 2000;
   const { data: contacts } = await supabase
     .from("contact")
     .select(
@@ -14,7 +20,8 @@ export default async function BoardPage() {
     )
     .in("stage", BOARD_STAGES as string[])
     .order("captured_at", { ascending: false })
-    .limit(1000);
+    .range(0, BOARD_CAP - 1);
+  const truncated = (contacts ?? []).length >= BOARD_CAP;
 
   const byStage = new Map<Stage, NonNullable<typeof contacts>>(
     BOARD_STAGES.map((s) => [s, []])
@@ -39,6 +46,18 @@ export default async function BoardPage() {
             </Link>
           }
         />
+        {truncated && (
+          <p className="mt-6 rounded-xl border border-porch/40 bg-butter px-4 py-3 text-sm">
+            Showing the {BOARD_CAP.toLocaleString()} most recent people. The
+            board is capped so it stays usable; <strong>the ledger and the
+            waiting-room dates are not</strong> and still cover everyone. Use{" "}
+            <Link href="/contacts" className="underline">
+              Contacts
+            </Link>{" "}
+            to search the rest.
+          </p>
+        )}
+
         {/* Below md the five lanes swipe sideways and keep their shape. Stacking
             them vertically turns a board into a very long list, which is the one
             thing a board is for not being. */}
