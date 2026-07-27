@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/admin";
+import { verifySystemSecret } from "@/lib/system-auth";
 
 // Inbound email webhook (Resend inbound / forwarding service).
 // Any human reply pauses the automation and creates a task —
 // nobody gets a drip while they're trying to talk to a person.
 export async function POST(request: Request) {
   if (
-    request.headers.get("x-webhook-secret") !== process.env.INBOUND_WEBHOOK_SECRET
+    !verifySystemSecret(
+      request.headers.get("x-webhook-secret"),
+      process.env.INBOUND_WEBHOOK_SECRET
+    )
   ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
