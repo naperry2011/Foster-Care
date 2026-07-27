@@ -44,6 +44,12 @@ begin
   return new;
 end $$;
 
+-- Guarded, unlike the triggers in 0001. These files are applied by hand in the
+-- SQL editor, so a half-finished paste followed by a re-run is a real way to
+-- spend an evening. Everything else in this file is already re-runnable
+-- (`drop policy if exists`, `create or replace function`); the bare
+-- `create trigger` was the one statement that would fail on a second pass.
+drop trigger if exists app_user_tenancy_immutable on app_user;
 create trigger app_user_tenancy_immutable
   before update on app_user
   for each row execute function forbid_self_tenancy_change();

@@ -52,11 +52,19 @@ script when the reports change edition.
 
 ## Apply before anything else
 
-- [ ] **Run migration `0011_tenancy_and_unsubscribe.sql`.** Forward-only, not
-      idempotent, run once. The code is already merged and is ahead of the
-      database: until this runs, `public_unsubscribe()` does not exist and the
-      unsubscribe page will fail. Then re-run `smoke-test` (three new tenancy
-      assertions) and `anon-audit` (two new `public_unsubscribe` assertions).
+- [ ] **Run migration `0011_tenancy_and_unsubscribe.sql`** by pasting it into the
+      Supabase SQL editor. The code is merged and ahead of the database: until
+      this runs, `public_unsubscribe()` does not exist and `/u/[id]` will fail.
+      Then re-run `smoke-test` and `anon-audit`; expect 62/62 and 38 safe.
+
+      **Do not use `supabase db push` on this project.** It applies everything
+      absent from `supabase_migrations.schema_migrations`, and because 0001-0010
+      were applied by hand in the editor rather than through the CLI, that table
+      does not know about them. A push would try to re-run them, and they are
+      forward-only and not idempotent. 0011 itself is now safe to re-run, but
+      the earlier files are not. If CLI pushes are ever wanted, backfill the
+      history table first with `supabase migration repair --status applied` for
+      each of 0001 through 0010.
 - [ ] Confirm which Vercel environments carry `CRON_SECRET` and
       `INBOUND_WEBHOOK_SECRET`. The endpoints now refuse when the variable is
       missing rather than accepting the literal "Bearer undefined", so a preview
