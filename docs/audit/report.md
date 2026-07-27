@@ -20,18 +20,17 @@ verification suites are genuinely good and have caught two real security holes t
 nothing else would have. There are **no Critical findings**. There are four High
 findings, and each is a small, contained fix.
 
+> **Correction, 2026-07-26.** The first issue of this report led with F-001,
+> describing nine Next.js advisories including an App Router middleware bypass, and
+> made it the top Horizon 1 item. That was wrong: `npm audit` contains no direct
+> Next.js advisory. All 12 highs are transitive, and the bump to `16.2.12` was
+> applied without changing the count. F-001 is now Low, the High count drops from
+> four to three, and the summary and roadmap below are re-sequenced accordingly.
+> Details and cause are in the F-001 entry of `findings.md`.
+
 Three things matter most this week.
 
-**First, the framework is one patch release behind a set of advisories that includes
-a bypass of its own middleware layer.** `next` is pinned at `16.2.10`; `npm audit`
-reports 12 high-severity advisories and zero at any other level, nine of them in
-Next itself, covering App Router middleware bypass, unauthenticated disclosure of
-internal server-function endpoints, and two cache-confusion issues. Porchlight's
-entire unauthenticated-access boundary is `src/proxy.ts`, so the middleware advisory
-lands directly on the auth gate. It is fixed in `16.2.12`, a non-breaking patch, and
-that single bump clears 11 of the 12. Do this first (F-001).
-
-**Second, three silent-failure paths sit on the demo narrative.** Nine unbounded
+**First, three silent-failure paths sit on the demo narrative.** Nine unbounded
 PostgREST reads in the cron and the ledger will stop at Supabase's default 1,000-row
 cap, returning HTTP 200 with no truncation signal, which turns the ledger's numbers
 quietly wrong and stops the cron processing contacts past the cap (F-002). The
@@ -42,7 +41,7 @@ consuming the one moment the waiting room delivers value (BUG-004). None has fir
 yet, because no email has been sent and no tenant has 1,000 contacts. All three will
 fire during the first design partner's first month.
 
-**Third, the row that decides which tenant a user belongs to is writable by that
+**Second, the row that decides which tenant a user belongs to is writable by that
 user.** `app_user_self_update` has no `WITH CHECK` clause and no column restriction,
 so an authenticated member can rewrite their own `agency_id` and `role`. Every RLS
 policy in the schema resolves through that column via `current_agency_id()`. This is
@@ -51,13 +50,22 @@ and there is currently one real tenant, but it is one leaked identifier away, an
 is exactly the class of defect the anon audit was built to catch and does not
 currently cover (F-003).
 
-**The recommended path is a focused week of fixes (all four High findings are small
+**Third, nothing verifies any of this automatically.** There is no CI, no branch
+protection, and the five verification suites cannot run without live service-role
+credentials, so they execute only when someone remembers. `anon-audit.mjs` has
+caught two real security holes by the owner's own record, and F-003 is precisely
+the kind of defect it would catch if its coverage were extended and it ran on every
+change. The blocker is correctly identified in `docs/ai/tasks.md` as a throwaway
+Supabase project, but four of the five gates (typecheck, lint, build, audit) need no
+database and can land today (F-008).
+
+**The recommended path is a focused week of fixes (all three High findings are small
 and independent), then CI before the first design partner, then the pilot.** Nothing
 here calls for rework or redesign.
 
 The findings register lists **21 items across seven dimensions, with 0 Critical and
-4 High**. The four High findings are one dependency bump, one pagination pass, one
-RLS policy clause, and one GET-to-POST change. On the positive side: the secret scan
+3 High**. The three High findings are one pagination pass, one RLS policy clause,
+and one GET-to-POST change. On the positive side: the secret scan
 is clean across the entire history, the open-redirect surface on the sign-in path is
 correctly closed in both places it appears, the send layer's consent and idempotency
 gates are structurally sound, and erasure is implemented and tested, which is a
@@ -183,10 +191,12 @@ Nine specific defect classes were checked and found absent, including debug logg
 open redirect on the sign-in path, double-send on a re-fired cron, and demo-tenant
 email leakage. Details in [`bugs.md`](bugs.md).
 
-### 2.5 Security and Compliance (0 Critical, 2 High, 4 Medium, 1 Low)
+### 2.5 Security and Compliance (0 Critical, 1 High, 4 Medium, 1 Low)
 
-- **F-001 (High)** 12 high-severity advisories in `next` 16.2.10, including a bypass
-  of the App Router middleware that is this app's auth gate. Fixed in 16.2.12.
+- **F-001 (Low, corrected, moved to Operational Readiness)** 12 high advisories, all
+  transitive and none reachable from a request: `postcss` and `sharp` bundled inside
+  `next`, plus a dev-only eslint chain. The bump to 16.2.12 was applied and changed
+  nothing. See the correction in `findings.md`.
 - **F-003 (High)** `app_user_self_update` has no `WITH CHECK` and no column
   restriction, so a member can rewrite their own `agency_id` and `role`, which is the
   column every RLS policy resolves through.
@@ -261,10 +271,10 @@ Roughly one focused day of work. All four are independent.
 
 | # | Item | Finding | Severity |
 |---|---|---|---|
-| H1-1 | Bump `next` and `eslint-config-next` to `16.2.12` by hand (exact pins), reinstall, typecheck, build, run `anon-audit` and `smoke-test`, deploy | F-001 | High |
-| H1-2 | Add `with check` and a column guard to `app_user_self_update`, plus a smoke-test assertion that agency-hopping and self-promotion both fail | F-003 | High |
-| H1-3 | Move the unsubscribe write to POST behind a confirmation page; add `List-Unsubscribe-Post` | F-004 | High |
-| H1-4 | Fail closed on missing `CRON_SECRET` and `INBOUND_WEBHOOK_SECRET`; confirm which Vercel environments carry them | F-005 | Medium |
+| H1-1 | Add `with check` and a column guard to `app_user_self_update`, plus a smoke-test assertion that agency-hopping and self-promotion both fail | F-003 | High |
+| H1-2 | Move the unsubscribe write to POST behind a confirmation page; add `List-Unsubscribe-Post` | F-004 | High |
+| H1-3 | Fail closed on missing `CRON_SECRET` and `INBOUND_WEBHOOK_SECRET`; confirm which Vercel environments carry them | F-005 | Medium |
+| ~~H1-4~~ | ~~Bump `next` to `16.2.12`~~ | F-001 | **Done**, and it cleared no advisory. See the F-001 correction |
 
 ### Horizon 2: Stabilize (before the first design partner)
 
