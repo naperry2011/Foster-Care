@@ -1,4 +1,158 @@
 import Link from "next/link";
+import Cited, { type Citation } from "@/components/ui/Cited";
+
+// The three figures that carry the argument, with their provenance attached.
+// These are hardcoded rather than read from az_stat: that table is readable by
+// signed-in users only, and this page renders signed out — and renders at all
+// when Supabase env vars are missing. Values and links are the same ones the
+// README cites. See ADR-011 for why nothing here may render uncited.
+const DCS_MONTHLY: Citation = {
+  publisher: "Arizona DCS",
+  title: "Monthly Operational & Outcomes Report, June 2026",
+  url: "https://dcs.az.gov/content/monthly-operational-outcomes-report-june-2026",
+  asOf: "Jun 2026",
+};
+
+const LANDING_STATS: { value: string; label: string; note?: string; source: Citation }[] = [
+  {
+    value: "61.9%",
+    label: "fewer licensed foster homes than in 2017",
+    note: "4,875 homes in SFY17. 1,859 in SFY25.",
+    source: DCS_MONTHLY,
+  },
+  {
+    value: "1,046",
+    label: "more homes the state says it needs, within twelve months",
+    source: {
+      publisher: "Governor's Office via KJZZ",
+      title:
+        "Arizona just raised foster care pay rates by 50%. State still needs 1,046 more homes",
+      url: "https://www.kjzz.org/politics/2025-12-05/arizona-just-raised-foster-care-pay-rates-by-50-state-still-needs-1-046-more-homes",
+      asOf: "Dec 5, 2025",
+    },
+  },
+  {
+    value: "8,183",
+    label: "children in out-of-home care today",
+    source: {
+      publisher: "Arizona DCS",
+      title: "Semi-Annual Child Welfare Report, March 2026",
+      url: "https://dcs.az.gov/content/semi-annual-child-welfare-report-mar-2026",
+      asOf: "Dec 31, 2025",
+    },
+  },
+];
+
+// What a recruiter actually opens, on a real Tuesday.
+const SCREENS = [
+  {
+    route: "/events",
+    label: "the table you set up",
+    title: "An event, and the code on it",
+    body: "Make the fair before you go — what it cost, how many hours it will take. Print the QR code, tape it to the tablecloth. Everyone who scans it arrives stamped with that Saturday, permanently.",
+  },
+  {
+    route: "/c/…",
+    label: "ten seconds, standing up",
+    title: "The one field they fill in",
+    body: "A phone number or an email. That's the whole form. Name is optional and comes second, because asking for a name first makes it feel like paperwork — and paperwork is where you lose people.",
+  },
+  {
+    route: "/board",
+    label: "where everyone stands",
+    title: "Five lanes, one glance",
+    body: "Curious, considering, not yet, inquiry, licensed. Move someone and it's written into a history nobody can quietly edit later — including you.",
+  },
+  {
+    route: "/contacts/…",
+    label: "one person, whole",
+    title: "Everything you ever said to them",
+    body: "Every call you logged, every note the system sent, every stage they moved through, in one column. Two years from now a different recruiter reads it in fifteen seconds and picks up where you stopped.",
+  },
+  {
+    route: "/tasks",
+    label: "your first ten minutes",
+    title: "What actually needs a human",
+    body: "Wake-ups whose day has arrived. Families who wrote back — automation already stopped itself. People in “considering” who've heard nothing for thirty days. Clear it, and nobody slips.",
+  },
+  {
+    route: "/ledger",
+    label: "the board meeting page",
+    title: "Which Saturdays became homes",
+    body: "Every source: what it cost, who it captured, how many are still warm, how many became homes, and how many months it took. Prints on one page.",
+  },
+];
+
+// The fence. Read the right-hand column as the reason, not the apology.
+const BOUNDARIES = [
+  {
+    claim: "It hands off at the inquiry.",
+    body: "Your licensing system stays the system of record. Porchlight never tries to become it.",
+  },
+  {
+    claim: "It never touches child data.",
+    body: "There is no table for it anywhere in the database. That's an absence, not a policy someone could change.",
+  },
+  {
+    claim: "No home study. No case management.",
+    body: "Binti and Casebook already do that, and do it well. We don't duplicate the parts that work.",
+  },
+  {
+    claim: "No CSV import — on purpose.",
+    body: "A thousand names with no record of how any of them were reached is the exact artefact this exists to replace. Homes you licensed before Porchlight can still be recorded, attributed to the source that produced them.",
+  },
+  {
+    claim: "Nobody is emailed without consent.",
+    body: "It's checked at the single path to the email provider, so there's no way to write around it — and one human reply pauses everything for that person.",
+  },
+  {
+    claim: "Opting out is permanent.",
+    body: "It can't be undone by anyone, including you. A person who leaves stays left.",
+  },
+  {
+    claim: "Families never log in.",
+    body: "The only two pages they ever see are a ten-second form and an unsubscribe page.",
+  },
+  {
+    claim: "Your agency's data is walled off in the database.",
+    body: "Not hidden in the interface — enforced in Postgres, and tested rather than assumed.",
+  },
+];
+
+const FAQ = [
+  {
+    q: "Does this replace Binti or our licensing system?",
+    a: "No, and it isn't trying to. Porchlight stops the moment a family inquires and hands them over. It owns the years before the application — the stretch your licensing system has never been able to see.",
+  },
+  {
+    q: "Do we have to import our contact list?",
+    a: "No — and Porchlight won't let you. A spreadsheet with no record of how anyone was reached would poison the one thing this exists to produce. You can record homes you licensed before Porchlight, attributed to the source that actually produced them.",
+  },
+  {
+    q: "How long until we see licensed homes?",
+    a: "Honestly: twelve to twenty-four months, because that's how long licensure lags a first conversation. Month two gives you captures and warm relationships, not homes. Judge the first year on how many people you're holding warm — those are the homes, early.",
+  },
+  {
+    q: "What happens when someone asks to be deleted?",
+    a: "One recorded path erases them completely — contact, conversations, stage history, everything queued. It keeps the event and what it cost, so your ledger stays honest afterwards rather than quietly improving every time someone leaves.",
+  },
+  {
+    q: "Can another agency see our contacts?",
+    a: "No. Every table is scoped to your agency in the database itself, and a standing audit checks what a stranger holding the public key can actually reach. It has caught two real holes that nothing else would have.",
+  },
+  {
+    q: "Who on our team can see what?",
+    a: "Everyone in your agency sees the same contacts, the same waiting room and the same ledger. “Director” and “recruiter” are labels, not access levels — worth knowing before you roll it out. Nobody can change their own role or move themselves into another agency.",
+  },
+  {
+    q: "What do we need to get started?",
+    a: "A recruiter, one real event, and ten minutes a day. Signing in is a magic link — there are no passwords to forget or share. Nurture email needs an email provider connected; everything else works without one.",
+  },
+  {
+    q: "Is this only for Arizona?",
+    a: "Today, yes, deliberately. The statistics are Arizona's and the onboarding checklist encodes Arizona's nine licensing requirements. Nothing in the design is Arizona-only, but nothing else has been built or verified yet, and we'd rather say so.",
+  },
+];
 
 const STAGES = [
   {
@@ -176,6 +330,18 @@ export default function Landing() {
             <span className="w-2.5 h-2.5 rounded-full bg-porch shadow-[0_0_18px_5px_rgba(233,162,59,.6)]" />
             <span className="font-display text-2xl font-semibold">Porchlight</span>
           </div>
+          {/* The page is long. Give people a way down it that isn't scrolling. */}
+          <div className="hidden sm:flex items-center gap-7 font-hand text-xl text-glow/75">
+            <a href="#path" className="hover:text-white transition">
+              how it works
+            </a>
+            <a href="#inside" className="hover:text-white transition">
+              inside the app
+            </a>
+            <a href="#questions" className="hover:text-white transition">
+              questions
+            </a>
+          </div>
           <Link
             href="/login"
             className="text-sm font-semibold rounded-full bg-glow/95 text-plum px-5 py-2.5 hover:bg-white transition"
@@ -261,6 +427,26 @@ export default function Landing() {
               years-long in-between.
             </p>
           </div>
+        </div>
+
+        {/* Every figure carries its publisher, its link and its date — the same
+            rule the app enforces on itself. A number you can't source is a
+            number a director can't repeat to a board. */}
+        <div className="max-w-4xl mx-auto px-6 mt-14">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {LANDING_STATS.map((s) => (
+              <Cited
+                key={s.label}
+                value={s.value}
+                label={s.label}
+                note={s.note}
+                source={s.source}
+              />
+            ))}
+          </div>
+          <p className="mt-4 font-hand text-xl text-muted text-center">
+            every number on this page says where it came from ♥
+          </p>
         </div>
       </section>
 
@@ -354,6 +540,47 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ============ WHAT YOU ACTUALLY DO IN IT ============ */}
+      <section id="inside" className="bg-paper-2 py-20 sm:py-24">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center">
+            <p className="font-hand text-2xl text-sage">a real Tuesday</p>
+            <h2 className="font-display font-semibold text-3xl sm:text-4xl mt-2">
+              What you actually do in it
+            </h2>
+            <p className="mt-4 text-muted max-w-xl mx-auto">
+              Six screens. Ten minutes a morning. Nothing here needs training
+              wheels or a consultant.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {SCREENS.map((s) => (
+              <div
+                key={s.route}
+                className="rounded-2xl border border-rule bg-white p-6 flex flex-col shadow-[0_14px_30px_-22px_rgba(60,47,42,.4)]"
+              >
+                <p className="font-hand text-xl text-clay">{s.label}</p>
+                <h3 className="font-display font-semibold text-xl mt-1">
+                  {s.title}
+                </h3>
+                <p className="mt-2.5 text-[15px] leading-relaxed text-ink/80 flex-1">
+                  {s.body}
+                </p>
+                <span className="mt-4 self-start rounded-full bg-paper-2 border border-rule px-3 py-1 text-[12px] tracking-[0.06em] text-muted">
+                  {s.route}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center mt-10 font-hand text-2xl text-ink/70 max-w-lg mx-auto">
+            The nightly part runs itself. The phone call is still yours —{" "}
+            <span className="text-clay">that was always the point.</span>
+          </p>
+        </div>
+      </section>
+
       {/* ============ PROOF ============ */}
       <section className="bg-sage-tint py-20 sm:py-24">
         <div className="max-w-4xl mx-auto px-6">
@@ -417,6 +644,65 @@ export default function Landing() {
               every one of them would have been lost.
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ============ WHERE PORCHLIGHT STOPS ============ */}
+      <section id="stops" className="py-20 sm:py-24">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="text-center">
+            <p className="font-hand text-2xl text-clay">the fence, out loud</p>
+            <h2 className="font-display font-semibold text-3xl sm:text-4xl mt-2">
+              Where Porchlight stops
+            </h2>
+            <p className="mt-4 text-muted max-w-xl mx-auto">
+              A short tool that knows its edges is worth more than a long one
+              that doesn&apos;t. Most of these are enforced in the database, not
+              promised in a manual.
+            </p>
+          </div>
+
+          <div className="mt-12 rounded-2xl border-2 border-dashed border-ink/15 bg-butter p-7 sm:p-9">
+            <ul className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
+              {BOUNDARIES.map((b) => (
+                <li key={b.claim}>
+                  <p className="font-display font-semibold text-[17px] leading-snug">
+                    {b.claim}
+                  </p>
+                  <p className="mt-1.5 text-[15px] leading-relaxed text-ink/75">
+                    {b.body}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* ============ QUESTIONS ============ */}
+      <section id="questions" className="bg-paper-2 py-20 sm:py-24">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="text-center">
+            <p className="font-hand text-2xl text-sage">
+              what directors ask first
+            </p>
+            <h2 className="font-display font-semibold text-3xl sm:text-4xl mt-2">
+              Straight answers
+            </h2>
+          </div>
+
+          <dl className="mt-12 grid gap-x-10 gap-y-9 sm:grid-cols-2">
+            {FAQ.map((f) => (
+              <div key={f.q}>
+                <dt className="font-display font-semibold text-lg leading-snug">
+                  {f.q}
+                </dt>
+                <dd className="mt-2 text-[15px] leading-relaxed text-ink/80">
+                  {f.a}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </section>
 

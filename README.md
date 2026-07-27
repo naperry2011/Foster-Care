@@ -108,6 +108,16 @@ Deploying it for real? [docs/deploy-setup.md](docs/deploy-setup.md) covers Verce
 
 ## Documentation
 
+**For agencies** — hand these to a human, not a compiler.
+
+| | |
+|---|---|
+| [docs/overview.md](docs/overview.md) | What Porchlight is, what it refuses to be, and who sees what |
+| [docs/workflow.md](docs/workflow.md) | The end-to-end workflow, step by step, naming who does what |
+| [docs/training.md](docs/training.md) | Day one for a new recruiter — first event, daily habit, common mistakes |
+
+**For engineers**
+
 | | |
 |---|---|
 | [docs/PLAN.md](docs/PLAN.md) | The milestone plan, M0 → M5 |
