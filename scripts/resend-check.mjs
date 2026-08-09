@@ -18,6 +18,8 @@ const args = process.argv.slice(2);
 const envPath = args.find((a) => !a.startsWith("--")) ?? ".env.local";
 const sendIdx = args.indexOf("--send");
 const recipient = sendIdx >= 0 ? args[sendIdx + 1] : null;
+const baseIdx = args.indexOf("--base");
+const baseOverride = baseIdx >= 0 ? args[baseIdx + 1] : null;
 
 const env = loadEnv(envPath);
 const results = [];
@@ -102,7 +104,20 @@ if (!recipient) {
   // headers Gmail and Outlook read. If those are malformed the message still
   // arrives, so eyeball the unsubscribe button in the client rather than
   // trusting this script's PASS.
-  const base = env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  // A live send that carries localhost links is not a test, it is a false
+  // negative: Gmail treats them as a spam signal and will not render its
+  // unsubscribe control for an unreachable List-Unsubscribe URL, so the one
+  // header we most want to prove goes untested. .env.local legitimately
+  // points at localhost for development, so pass --base for a real send.
+  const base = baseOverride ?? env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  if (/localhost|127\.0\.0\.1/.test(base)) {
+    fail(
+      "live send uses a public base URL",
+      `${base} — pass --base https://yourdomain to send a representative message`
+    );
+    console.log(`\n${results.filter((r) => r[0] === "PASS").length} passed, ${results.filter((r) => r[0] === "FAIL").length} failed`);
+    process.exit(1);
+  }
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
