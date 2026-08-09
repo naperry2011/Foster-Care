@@ -46,18 +46,33 @@ const addr = from?.match(/<([^>]+)>/)?.[1] ?? from ?? "";
 const fromDomain = addr.split("@")[1]?.toLowerCase();
 
 // ---- 2. the key works, and the domain is verified ------------------------
+//
+// The app only ever calls POST /emails, so the right key here is a *sending*
+// key restricted to the one domain — not full access. A restricted key cannot
+// read /domains, and that refusal is the correct answer, not a failure. So a
+// restricted key is reported as good news and the live send becomes the only
+// real proof; a full-access key gets the extra domain check for free.
 let domains = null;
+let restricted = false;
 if (key) {
   const res = await fetch("https://api.resend.com/domains", {
     headers: { Authorization: `Bearer ${key}` },
   });
-  if (res.status === 401 || res.status === 403) {
+  const body = await res.json().catch(() => ({}));
+  const looksRestricted =
+    body?.name === "restricted_api_key" || /restricted/i.test(body?.message ?? "");
+
+  if (res.ok) {
+    pass("API key accepted by Resend", "full access — domain check available below");
+    domains = body.data ?? [];
+  } else if (looksRestricted) {
+    restricted = true;
+    pass("API key accepted by Resend", "sending-only key — least privilege, as it should be");
+    skip("EMAIL_FROM domain verified", "a sending key can't read /domains; --send is the proof");
+  } else if (res.status === 401 || res.status === 403) {
     fail("API key accepted by Resend", `HTTP ${res.status} — key is wrong or revoked`);
-  } else if (!res.ok) {
-    fail("API key accepted by Resend", `HTTP ${res.status}`);
   } else {
-    pass("API key accepted by Resend");
-    domains = (await res.json()).data ?? [];
+    fail("API key accepted by Resend", `HTTP ${res.status}`);
   }
 }
 
@@ -80,7 +95,7 @@ if (domains) {
 // ---- 3. a real message, only when asked ---------------------------------
 if (!recipient) {
   skip("live send", "pass --send you@example.com to actually deliver one");
-} else if (!key || !domains) {
+} else if (!key || (!domains && !restricted)) {
   skip("live send", "configuration failed above; not attempting");
 } else {
   // Same shape as sendNurtureEmail: text body, and the RFC 8058 one-click
