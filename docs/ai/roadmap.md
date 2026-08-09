@@ -31,29 +31,38 @@ PLAN.md (M6–M12).
 
 ## Now — M6, pilot-safe
 
-- **Resend account + verified domain. The one item with no slack.** The pilot
-  includes nurture email and nothing has ever reached an inbox; DNS propagation
-  and sending reputation do not compress. Start it first and check on it weekly.
-  Cannot be rehearsed on the demo agency, which `send.ts` refuses. Check Gmail's
-  one-click unsubscribe against a real message while you are there.
+Roughly half done. Everything shipped sits on `m6-pilot-safe` (PR #1, CI green)
+and **is not yet merged**. Detail and status table in tasks.md.
+
+**Done:** Resend account and verified domain — the one item with no slack, now
+off the critical path. Capture-page hardening and wider slugs (F-006, F-020).
+Webhook tenancy reduced (F-007). CI on pull request (F-008). `.env.example`
+tracked (F-009).
+
+**Still open:**
+
+- **Legal entity decision.** Now likely the real critical path: it gates the
+  privacy policy, the Resend DPA, any contract with The Greenhouse, and Twilio.
 - **Privacy policy, Resend DPA, retention period, subject-access path** (audit
   H3-7). They hold PII about identifiable adults in October, and M10's
   demographic work is gated behind this being done properly.
-- **Rate limit the capture page** (F-006) and **widen capture slugs** (F-020)
-  before a printed QR code is on a real table. It is the only public write path
-  and currently has no throttle of any kind.
-- **Fix the inbound webhook's cross-tenant `ilike` match** (F-007). Theoretical
-  with one tenant; The Greenhouse plus the demo agency makes it real, and it
-  writes into an append-only table.
 - **A throwaway Supabase project**, so verification stops writing to the database
   that is about to hold a real agency's families. Also retires hand-pasted
   migrations and suites that only run when somebody remembers.
-- **Secrets out of Dropbox** (F-010).
-- **CI on pull request** — typecheck, lint, build, `npm audit`. None of it needs
-  a database, so it lands before the project above; the suites join afterwards.
-  Then protect `main`.
+- **Secrets — and the repository — out of Dropbox** (F-010). Scoped to secrets
+  at rest; in practice Dropbox is also syncing `.git` and `.next`, which has
+  already rewritten git state mid-session and corrupted Turbopack's cache.
 - **Cron heartbeat and error reporting** (F-011). A dead tick looks identical to
-  a quiet week, and in October their wake-ups ride on it.
+  a quiet week, and in October their wake-ups ride on it. Needs a migration.
+- **Domain warming.** The first real send landed in spam, which is normal for a
+  days-old domain and does not fix itself. If The Greenhouse's first nurture
+  emails go out cold in October, a share land in spam and the waiting-room
+  mechanic fails quietly while the ledger reports success. Start small real
+  volumes now; register at Gmail Postmaster Tools.
+- **A reply path.** Nothing can receive replies today, `send.ts` sets no
+  `reply_to`, and the inbound webhook is the only thing in the product that can
+  pause automation — there is no manual override. Four nurture templates invite
+  a reply.
 - **Prove the live site with a human** — magic-link delivery, a printed QR
   scanned on mobile data, and the mobile nav on an actual phone.
 
@@ -107,9 +116,12 @@ PLAN.md (M6–M12).
 
 ## Recently Completed
 
-- **Design partner landed: The Greenhouse**, Tucson-focused, pilot in October 2026. Landscape brief received and answered in `docs/az-priorities.md`; M6–M12 planned against it — 2026-08-08
-- Human-facing documentation (`docs/overview.md`, `workflow.md`, `training.md`) and a landing page that says what the product actually does, with the Arizona figures finally cited on it — 2026-08-08
-- Fixed manually logged conversations recording as inbound regardless of who reached out — found while answering the design partner's question about touch-point tracking — 2026-08-08
+- **Email works.** Sending-only Resend key, `contact.porchlightfostercare.org` verified, DMARC added, a real message delivered with SPF/DKIM/DMARC all PASS and a DKIM-signed one-click unsubscribe. Placement is still spam — reputation, not configuration — so domain warming is now a scheduling item before October — 2026-08-09
+- **M6 security and operations, on `m6-pilot-safe` (PR #1):** capture-page hardening and wider slugs (F-006, F-020), webhook tenancy reduced (F-007), CI on pull request (F-008), `.env.example` tracked (F-009) — 2026-08-09
+- Two forgotten live test tenants would have been emailed by the next production tick, one at a stranger's real address. Marked demo; zero real sends pending. The ADR-010 send guard held for the demo agency's 179 consenting contacts — 2026-08-09
+- **Design partner landed: The Greenhouse**, Tucson-focused, pilot in October 2026. Landscape brief received and answered in `docs/az-priorities.md`; M6–M12 planned against it — 2026-08-09
+- Human-facing documentation (`docs/overview.md`, `workflow.md`, `training.md`) and a landing page that says what the product actually does, with the Arizona figures finally cited on it — 2026-08-09
+- Fixed manually logged conversations recording as inbound regardless of who reached out — found while answering the design partner's question about touch-point tracking — 2026-08-09
 - Engineering audit (`docs/audit/`, 21 findings) and its Horizon 1: tenancy guard, unsubscribe rework, fail-closed system secrets, the 1000-row cap. No open Critical or High findings. Tagged `v0.6.0` — 2026-07-26
 - Add a contact from anywhere, delete a source, and a full responsive pass — the three gaps found by using the product rather than reading it — 2026-07-26
 - Production on porchlightfostercare.org: DNS, Vercel env, rotated system secrets, Supabase auth redirects, apex serving so QR codes carry no redirect — 2026-07-26
