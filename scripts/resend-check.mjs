@@ -43,6 +43,17 @@ if (from && !from.includes("example.com")) {
   fail("EMAIL_FROM set", from ? `still the placeholder: ${from}` : "empty");
 }
 
+// Only the address is load-bearing — send.ts replaces the display name with
+// the sending agency's own, so what a family sees is never this string.
+skip("EMAIL_FROM display name is a fallback", "each send goes out as the agency");
+
+// Not a failure: replies were impossible before this existed, so an empty
+// value is the old behaviour rather than a regression. It is still a hole,
+// because four nurture templates ask the family to write back.
+env.EMAIL_REPLY_TO
+  ? pass("EMAIL_REPLY_TO set", env.EMAIL_REPLY_TO)
+  : skip("EMAIL_REPLY_TO set", "empty — a reply goes to a mailbox that accepts none");
+
 // "Porchlight <hello@porchlightfostercare.org>" -> porchlightfostercare.org
 const addr = from?.match(/<([^>]+)>/)?.[1] ?? from ?? "";
 const fromDomain = addr.split("@")[1]?.toLowerCase();
