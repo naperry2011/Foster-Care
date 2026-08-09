@@ -1,0 +1,55 @@
+name: CI
+
+# Audit F-008: 33 of 34 commits went straight to main with no automated gate.
+# Nothing here needs a database, which is why it lands before the throwaway
+# Supabase project. The five verification suites (smoke, cron, anon-audit,
+# demo, ledger-parity) join this workflow once that project exists — until
+# then they would have to run against the database production uses.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A second push to the same branch makes the first run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `xlsx` is pinned to a SheetJS CDN tarball rather than the registry
+      # (F-015), so a clean install here depends on cdn.sheetjs.com being up.
+      # If CI starts failing on install with the app untouched, look there first.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Placeholders only. NEXT_PUBLIC_* values are inlined at build time, so
+      # the build needs *something* — but these never reach a deployment, and
+      # the app is written to fall back to the landing page when Supabase env
+      # is absent or unusable. Never put real keys in this file.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build-only
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      # Advisory, not a gate. Every high at the time of the audit was
+      # transitive and unreachable (F-001), and failing the build on somebody
+      # else's postcss advisory trains people to ignore the whole workflow.
+      - name: Audit dependencies (advisory)
+        run: npm audit --audit-level=high || true

@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template. README step 2 tells you to copy it, so excluding it
+# made setup impossible for anyone who wasn't already holding a working .env.
+# It contains names only, never values. Audit F-009.
+!.env.example
 
 # vercel
 .vercel
