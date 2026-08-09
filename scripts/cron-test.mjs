@@ -13,7 +13,18 @@ const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString();
 const stamp = Date.now();
 let agencyId;
 try {
-  const { data: ag } = await admin.from("agency").insert({ name: `Cron Smoke ${stamp}` }).select("id").single();
+  // is_demo is load-bearing, not cosmetic. This seeds consenting contacts at
+  // @example.test — a reserved TLD that can never receive mail — and the cron
+  // runs nurture across every agency. Before a Resend key existed those sends
+  // were skipped for want of a provider and the test was safe by accident.
+  // With a key configured they would be real API calls producing guaranteed
+  // hard bounces, from a domain whose reputation is days old. send.ts refuses
+  // demo agencies for exactly this reason; opt in rather than rely on the
+  // environment happening to be unconfigured.
+  const { data: ag } = await admin
+    .from("agency")
+    .insert({ name: `Cron Smoke ${stamp}`, is_demo: true })
+    .select("id").single();
   agencyId = ag.id;
   const { data: src } = await admin.from("source")
     .insert({ agency_id: agencyId, kind: "event", name: "Cron Fair", slug: `cron-${stamp}` })
@@ -106,9 +117,13 @@ try {
     : fail("re-running cron does not duplicate cold flags", `${tasks2.filter((t) => t.kind === "cold_flag").length} tasks, 2nd tick raised ${body2.coldFlags}`);
 
   const { data: sends2 } = await admin.from("send_log").select("id,status,dedupe_key").eq("agency_id", agencyId);
+  // A send refused before it happens must not claim its dedupe key, or the
+  // email is marked handled forever and never retries. Previously this proved
+  // it for a missing provider; now it proves it for the demo guard, which is
+  // the refusal that actually exists in production.
   (sends2 ?? []).length === 0
-    ? pass("unsendable email leaves no burnt dedupe key (will retry)")
-    : fail("unsendable email leaves no burnt dedupe key",
+    ? pass("refused send leaves no burnt dedupe key (will retry)")
+    : fail("refused send leaves no burnt dedupe key",
         `${sends2.length} rows would block forever: ${sends2.map((s) => s.dedupe_key + "=" + s.status)}`);
 
   // the monthly outcome-confirmation habit the ledger depends on

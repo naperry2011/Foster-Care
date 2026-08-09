@@ -233,17 +233,27 @@ export default async function ContactPage({
             </p>
             <form action={logManualTouch} className="space-y-2">
               <input type="hidden" name="contact_id" value={contact.id} />
-              <select
-                name="channel"
-                defaultValue="call"
-                className="w-full rounded-md border border-rule px-3 py-2 text-sm bg-white"
-              >
-                {Object.entries(TOUCH_CHANNEL_LABELS).map(([v, label]) => (
-                  <option key={v} value={v}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  name="direction"
+                  defaultValue="out"
+                  className="w-full rounded-md border border-rule px-3 py-2 text-sm bg-white"
+                >
+                  <option value="out">I reached out</option>
+                  <option value="in">They reached out</option>
+                </select>
+                <select
+                  name="channel"
+                  defaultValue="call"
+                  className="w-full rounded-md border border-rule px-3 py-2 text-sm bg-white"
+                >
+                  {Object.entries(TOUCH_CHANNEL_LABELS).map(([v, label]) => (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <textarea
                 name="body"
                 rows={3}

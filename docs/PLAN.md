@@ -105,8 +105,140 @@ tells the whole story from a cold start. Merged to `main` 2026-07-26.
 
 ---
 
+# The design partner, and what it changed
+
+M0–M5 were built against a spec. Everything below is built against an agency.
+
+**The Greenhouse** — an Arizona licensing agency focused on Tucson — became a
+design partner in August 2026 and sent back a landscape brief on Arizona's foster
+care system plus a set of DCS figures. Their own internal outreach pilot starts
+in **October 2026**, with the full loop in scope, nurture email included.
+
+Three things in that brief moved the plan:
+
+1. **DCS does not want more homes. It wants five specific kinds of home** — kin,
+   racially and culturally matched, sibling groups, older youth, and medically
+   complex or therapeutic. `contact` has nineteen columns and none of them
+   describe the family, so `ledger_rows()` groups by exactly one dimension:
+   `source.id`. A source that produced three therapeutic homes and one that
+   produced three respite-only homes are identical on the screen that closes the
+   sale.
+2. **Kinship is the largest opportunity and 0007 explicitly excluded it**,
+   annotating 2,193 unlicensed kinship homes as "not a recruitment pipeline".
+   That annotation is wrong. It is not recruitment, it is conversion: the family
+   already has the child, licensing takes 60–90 days, and it roughly doubles what
+   they receive.
+3. **The ledger can finally argue in dollars.** Agencies receive $1,250 per newly
+   licensed family on first placement and $1,000 for a congregate step-down.
+   Every money column in the schema is an outflow, and
+   `outcome.first_placement_on` — the exact trigger for the $1,250 — has been
+   declared since 0001 and written by nothing.
+
+Their answer is `docs/az-priorities.md`. The milestones below are sequenced
+backwards from October.
+
+## Milestone 6 — Pilot-safe
+**Ship: a system fit to hold a real agency's families.**
+
+Every item either has external lead time or gates the collection of real PII.
+
+- **Resend account and verified domain — the one item with no slack.** The pilot
+  includes nurture email; nothing has ever reached an inbox. DNS and sending
+  reputation do not compress.
+- Privacy policy, data-processing agreement, retention period, subject-access
+  path. `delete_contact()` is the mechanism; this is the policy around it.
+- Rate limit `/c/[slug]` and widen capture slugs, before a printed QR is on a
+  table.
+- Fix the inbound webhook's cross-tenant match — theoretical with one tenant,
+  real with two.
+- A throwaway Supabase project; secrets out of Dropbox; CI on pull request; then
+  protect `main`.
+- Cron heartbeat and error reporting. A dead tick currently looks exactly like a
+  quiet week.
+
+**Done means:** a real nurture email delivered to a real inbox, and no path to a
+real agency's data that verification also writes to.
+
+## Milestone 7 — Pima-ready
+**Ship: their actual goal, expressible and measured.**
+
+Migration 0013, and the narrowest schema change that does it.
+
+- County and postal code on a contact. Contacts carry no location at all today,
+  so the ledger cannot answer "how many homes in Pima?" Deliberately not added to
+  `az_geo`, which mirrors what Arizona publishes and publishes nothing by ZIP
+  (ADR-009).
+- `contact_profile` — capacity, sibling groups, age range, placement types.
+  Optional, `on delete cascade`, and the vocabulary comes from their team rather
+  than from us. Demographic columns are added to this same table in M10, behind
+  M6's privacy work.
+- `caregiver_kind` (`community | kin`) — two lines, shipped now so kin families
+  captured in October are tagged from day one rather than sorted out by hand
+  later. Deliberately not a new `contact_stage` value (ADR-008).
+- `agency_target` gains a geography and a metric, so "120 beds in Pima" fills in
+  instead of sitting there as text.
+- **Homes lead, beds shown alongside.** Beds are summed from recorded capacity,
+  never homes × the statewide 2.2, and the screen says how many are unrecorded.
+
+**Done means:** a director opens `/arizona` and sees their Tucson target as a
+number moving, and the capture page still takes ten seconds.
+
+## Milestone 8 — The October pilot
+**Ship: the five paths that have never run.**
+
+QR scanned from a real phone; an email delivered; a reply received and automation
+paused; a wake-up fired for a real person; a ledger with real outcomes in it.
+Each has an audit finding sitting on it, and all five run for the first time in
+front of real families.
+
+Onboard before the date, not during: their sources seeded, their existing
+licensed homes backfilled, Pima set, the 120 target set, their recruiter walked
+through `/tasks`. Design the feedback collection beforehand — they offered it.
+
+**Done means:** thirty people captured who would otherwise have evaporated, and a
+defect list worth more than any feature.
+
+## Milestone 9 — The kinship conversion funnel
+Migration 0014. A kinship journey catalog against the Gold Standard 60–90 day
+timeline; kinship messaging, because the current templates persuade someone who
+has never considered fostering and would be wrong sent to a grandmother whose
+grandchildren are already asleep upstairs; stage labels that vary by kind; board
+and ledger separation, because the two funnels have genuinely different lags and
+economics. Deferred past the pilot deliberately — the tag has been live since
+October, so this starts with real data rather than a guess.
+
+## Milestone 10 — Demographics and language
+Sensitive columns on `contact_profile`: language, race and ethnicity
+(multi-select), tribal affiliation. Optional, self-reported, never inferred.
+Gated on M6. Unblocks Spanish capture, overdue since M4.
+
+## Milestone 11 — The economics ledger
+Migrations 0015–0016. Write `first_placement_on` at last; incentives on
+`outcome`; published DCS rates in `az_stat` with citations, kept apart from the
+agency-editable defaults used in arithmetic (ADR-009); `ledger_rows()` v2 with
+revenue and a split by caregiver kind. Columns added to existing per-source rows
+rather than new grouping dimensions, so `ledger-parity` still proves nothing
+moved (ADR-014).
+
+## Milestone 12 — The pitch surface
+`/arizona` gains a DCS priorities view. Demo agency reseeded to tell the kinship
+and incentive story. `docs/overview.md`, `workflow.md` and `training.md`
+refreshed — all three describe a single stranger-recruitment funnel and go stale
+the moment M9 lands.
+
+---
+
 ## Deliberately NOT building (spec §02)
 Home-study/licensing workflow, case management, anything touching child data, caregiver-facing family app, group-home compliance tooling.
+
+**Where the design partner's brief will test this fence.** It covers congregate
+care, QRTP accreditation, judicial oversight and specialized group-home cohorts
+in detail. All of that is context, not scope. Concretely: the congregate
+step-down incentive in M11 is a boolean on **the home's** outcome and never a
+record about a child; nothing in M9's kinship work touches the placement itself;
+and no amount of QRTP detail in a client document makes group-home compliance
+ours. Every gravity in this market pulls toward the application, because that is
+where the incumbent budget sits. The refusal is what makes the product legible.
 
 ## Verification
 - RLS isolation test suite (two tenants, cross-access attempts fail) — run in CI.

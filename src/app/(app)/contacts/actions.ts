@@ -134,10 +134,17 @@ export async function logManualTouch(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return;
 
+  // Who reached out matters: the timeline renders "from them" or "sent", and a
+  // recruiter's own voicemail logged as inbound reads as the family calling
+  // back. This used to be hardcoded "in" while the form said "you called".
+  // Anything that isn't explicitly inbound is treated as outbound, because
+  // that is what logging a conversation from this form almost always means.
+  const direction = formData.get("direction") === "in" ? "in" : "out";
+
   const { error } = await supabase.from("touch").insert({
     agency_id: user.agencyId,
     contact_id: id,
-    direction: "in",
+    direction,
     channel,
     body,
     created_by_user_id: user.id,

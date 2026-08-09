@@ -50,6 +50,15 @@ type TaskRow = {
 const stageLabel = (s: string | null) =>
   s ? (STAGE_LABELS[s as Stage] ?? s) : null;
 
+// "Phone call sent" is not a thing anybody says, and "In person from them"
+// is worse. Each channel gets the phrasing a recruiter would actually use.
+function touchTitle(channel: string, inbound: boolean): string {
+  if (channel === "in_person") return "Met in person";
+  const label = TOUCH_CHANNEL_LABELS[channel as TouchChannel] ?? channel;
+  if (channel === "call") return inbound ? `${label} from them` : `${label} to them`;
+  return inbound ? `${label} from them` : `${label} sent`;
+}
+
 // One story per contact, assembled from four append-only sources. Sorted
 // newest first — a recruiter opening a record wants "what just happened".
 export function buildTimeline({
@@ -66,14 +75,12 @@ export function buildTimeline({
   const entries: TimelineEntry[] = [];
 
   for (const t of touches) {
-    const channel =
-      TOUCH_CHANNEL_LABELS[t.channel as TouchChannel] ?? t.channel;
     const inbound = t.direction === "in";
     entries.push({
       id: `touch-${t.id}`,
       at: t.occurred_at,
       kind: inbound ? "touch_in" : "touch_out",
-      title: inbound ? `${channel} from them` : `${channel} sent`,
+      title: touchTitle(t.channel, inbound),
       body: t.body,
     });
   }
