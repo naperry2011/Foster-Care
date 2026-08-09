@@ -1,8 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
+import {
+  parseContactField,
+  parseFirstName,
+  rateLimited,
+  clientKey,
+} from "@/lib/capture-guard";
 
 // Public ten-second capture page. No auth, minimal JS, one field first.
 // Contact creation goes through the public_capture() security-definer RPC —
 // anonymous visitors never get table access.
+//
+// The guards live in @/lib/capture-guard and are deliberately invisible: this
+// page's whole reason for working is that it takes ten seconds standing up at
+// a table, so nothing here may add a field a real person has to think about.
 
 export default async function CapturePage({
   params,
@@ -18,26 +29,45 @@ export default async function CapturePage({
     "use server";
     const { redirect } = await import("next/navigation");
     const slug = String(formData.get("slug"));
-    const contactInfo = String(formData.get("contact") ?? "").trim();
-    const firstName = String(formData.get("first_name") ?? "").trim();
     const consent = formData.get("consent") === "on";
-    if (!contactInfo) redirect(`/c/${slug}?error=1`);
 
-    const isEmail = contactInfo.includes("@");
+    // Honeypot. A person never sees this field, so anything in it came from
+    // something filling every input on the page. Show the thank-you rather
+    // than an error: a bot that learns it was caught just tries again.
+    // `return redirect(...)` rather than a bare call: destructured off a
+    // dynamic import, TypeScript does not treat it as never-returning, so a
+    // bare call leaves everything below it looking reachable.
+    if (String(formData.get("website") ?? "").trim()) {
+      return redirect(`/c/${slug}?done=1`);
+    }
+
+    const identity = parseContactField(String(formData.get("contact") ?? ""));
+    if (!identity) return redirect(`/c/${slug}?error=1`);
+
+    const h = await headers();
+    if (
+      rateLimited(
+        clientKey(h.get("x-forwarded-for"), h.get("x-real-ip"), slug)
+      )
+    ) {
+      return redirect(`/c/${slug}?error=1`);
+    }
+
+    const isEmail = identity.kind === "email";
     const anon = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     const { error } = await anon.rpc("public_capture", {
       p_slug: slug,
-      p_phone: isEmail ? null : contactInfo,
-      p_email: isEmail ? contactInfo : null,
-      p_first_name: firstName || null,
+      p_phone: isEmail ? null : identity.value,
+      p_email: isEmail ? identity.value : null,
+      p_first_name: parseFirstName(String(formData.get("first_name") ?? "")),
       p_consent_email: consent && isEmail,
       p_consent_sms: consent && !isEmail,
     });
-    if (error) redirect(`/c/${slug}?error=1`);
-    redirect(`/c/${slug}?done=1`);
+    if (error) return redirect(`/c/${slug}?error=1`);
+    return redirect(`/c/${slug}?done=1`);
   }
 
   return (
@@ -63,6 +93,22 @@ export default async function CapturePage({
             </p>
             <form action={capture} className="mt-6 space-y-3 text-left">
               <input type="hidden" name="slug" value={slug} />
+              {/* Honeypot. Off-screen rather than display:none, which the
+                  better bots skip, and hidden from assistive tech and the tab
+                  order so nobody using a screen reader ever meets it. */}
+              <div
+                aria-hidden="true"
+                className="absolute w-px h-px -left-[9999px] overflow-hidden"
+              >
+                <label htmlFor="website">Leave this field empty</label>
+                <input
+                  id="website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+              </div>
               <input
                 name="contact"
                 required
