@@ -8,41 +8,94 @@ Porchlight is the pre-inquiry recruitment layer for foster care agencies: captur
 
 ## Current Focus
 
-**Theme:** Land the first paying design partner. The product is client-ready and
-deployed on its own domain; what it has never done is send a real email or carry
-a real agency's families.
+**Theme:** The design partner exists. Make October work.
+
+**The Greenhouse** is a design-partner agency with their own internal outreach
+pilot starting in **October 2026**. They are focused on Tucson, where Pima has
+the highest share of children placed outside their own county, and their stated
+need is about **120 beds**. Their scope decision: the full loop, nurture email
+included.
+
+Everything below is sequenced backwards from that date. The five paths this
+product exists for have never once been exercised — a QR scanned from a real
+phone, an email delivered, a reply received, a wake-up fired, a ledger with real
+outcomes — and all five will run for the first time in front of real families.
+
 **Goals:**
-1. Land one Arizona design-partner agency for a single-event pilot
-2. First genuine nurture email sent end to end (needs Resend; the domain is now
-   in hand)
+1. The full loop working end to end for one real agency, in October
+2. Their Tucson target expressible and measurable — county on a contact, and a
+   goal that fills in rather than a line of text
 
-## Now
+See `docs/az-priorities.md` for what we told them, and the milestone plan in
+PLAN.md (M6–M12).
 
-- **A throwaway Supabase project.** It reads like a CI chore and is actually the
-  highest-leverage item on this list: it is why the suites only run when somebody
-  remembers, why every verification writes to the database production uses, and
-  why migrations have to be hand-pasted. One afternoon retires all three.
+## Now — M6, pilot-safe
+
+- **Resend account + verified domain. The one item with no slack.** The pilot
+  includes nurture email and nothing has ever reached an inbox; DNS propagation
+  and sending reputation do not compress. Start it first and check on it weekly.
+  Cannot be rehearsed on the demo agency, which `send.ts` refuses. Check Gmail's
+  one-click unsubscribe against a real message while you are there.
+- **Privacy policy, Resend DPA, retention period, subject-access path** (audit
+  H3-7). They hold PII about identifiable adults in October, and M10's
+  demographic work is gated behind this being done properly.
+- **Rate limit the capture page** (F-006) and **widen capture slugs** (F-020)
+  before a printed QR code is on a real table. It is the only public write path
+  and currently has no throttle of any kind.
+- **Fix the inbound webhook's cross-tenant `ilike` match** (F-007). Theoretical
+  with one tenant; The Greenhouse plus the demo agency makes it real, and it
+  writes into an append-only table.
+- **A throwaway Supabase project**, so verification stops writing to the database
+  that is about to hold a real agency's families. Also retires hand-pasted
+  migrations and suites that only run when somebody remembers.
+- **Secrets out of Dropbox** (F-010).
 - **CI on pull request** — typecheck, lint, build, `npm audit`. None of it needs
   a database, so it lands before the project above; the suites join afterwards.
   Then protect `main`.
-- **Rate limit the capture page** before a printed QR code is on a real table.
-  It is the only public write path and currently has no throttle of any kind.
-- **Resend account + verified domain.** The send layer has been exercised only
-  against a missing API key, where it correctly skips. Nothing has reached an
-  inbox. Cannot be rehearsed on the demo agency, which `send.ts` refuses. Check
-  Gmail's one-click unsubscribe against a real message while you're there.
+- **Cron heartbeat and error reporting** (F-011). A dead tick looks identical to
+  a quiet week, and in October their wake-ups ride on it.
 - **Prove the live site with a human** — magic-link delivery, a printed QR
   scanned on mobile data, and the mobile nav on an actual phone.
-- **Design-partner onboarding** — seed sources, backfill licensed homes, set
-  their counties on `/arizona`.
 
-## Next
+## Next — M7, Pima-ready, then the pilot
 
+- **Migration 0013** — county and postal code on a contact (contacts currently
+  carry no location at all, so the ledger cannot answer "how many homes in
+  Pima?"); a `contact_profile` table for capacity, sibling groups, age ranges and
+  placement types; and the `caregiver_kind` discriminator, shipped early so kin
+  families captured in October are tagged from day one.
+- **Make `agency_target` measurable** — it has no `geo_id` and no `metric_id`
+  today, so "120 beds in Pima" is decorative and no progress is ever computed.
+- **Homes lead, beds alongside.** Beds are summed from recorded capacity, never
+  homes × a statewide average, and the screen says how many are unrecorded.
+- **Video chat with The Greenhouse before 0013 is finalised** — their touch
+  channels and their placement-type vocabulary go straight into the migration.
+  Also resolve the congregate discrepancy (808 vs 1,500) before either number
+  goes near a board pack.
+- **Design their pilot feedback collection before October, not during.**
+- **Onboard them** — seed sources, backfill licensed homes, set Pima on
+  `/arizona`, set the 120 target.
+
+## After the pilot
+
+- **M9 — the kinship conversion funnel.** The largest gap in their brief:
+  roughly ten unlicensed kin homes for every licensed one, families who already
+  have the child, 60–90 days to license, stipend roughly doubles. Not
+  recruitment — conversion. Deferred deliberately so the pilot shapes it. Note
+  `0007_arizona.sql:275` currently annotates unlicensed kin as "not a
+  recruitment pipeline"; that annotation is wrong and should go.
+- **M10 — demographics and language**, gated on the privacy work above. Also
+  unblocks Spanish capture.
+- **M11 — the economics ledger.** `outcome.first_placement_on` has been declared
+  since 0001 and written by nothing, and it is exactly what triggers the $1,250
+  FAS placement incentive; plus $1,000 for a congregate step-down. The ledger is
+  cost-only today and can finally argue in dollars.
+- **M12 — the pitch surface**, and refresh overview/workflow/training, which all
+  describe a single stranger-recruitment funnel and go stale when M9 lands.
 - Email the invitation from `/settings/team` instead of copying a link. Note it
   will be the first non-nurture message through `send.ts` and will meet the
   channel-seam problem in ADR-003 before SMS does.
 - A "who's in onboarding" list — the tracker is only reachable per contact
-- Error reporting and a cron heartbeat; a dead tick is currently invisible
 - Refresh the Arizona figures when DCS publishes (twice a year; see tasks.md)
 
 ## Later (v1.1 → v2, per spec)
@@ -54,6 +107,9 @@ a real agency's families.
 
 ## Recently Completed
 
+- **Design partner landed: The Greenhouse**, Tucson-focused, pilot in October 2026. Landscape brief received and answered in `docs/az-priorities.md`; M6–M12 planned against it — 2026-08-08
+- Human-facing documentation (`docs/overview.md`, `workflow.md`, `training.md`) and a landing page that says what the product actually does, with the Arizona figures finally cited on it — 2026-08-08
+- Fixed manually logged conversations recording as inbound regardless of who reached out — found while answering the design partner's question about touch-point tracking — 2026-08-08
 - Engineering audit (`docs/audit/`, 21 findings) and its Horizon 1: tenancy guard, unsubscribe rework, fail-closed system secrets, the 1000-row cap. No open Critical or High findings. Tagged `v0.6.0` — 2026-07-26
 - Add a contact from anywhere, delete a source, and a full responsive pass — the three gaps found by using the product rather than reading it — 2026-07-26
 - Production on porchlightfostercare.org: DNS, Vercel env, rotated system secrets, Supabase auth redirects, apex serving so QR codes carry no redirect — 2026-07-26
