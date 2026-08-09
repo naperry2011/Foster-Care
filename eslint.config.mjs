@@ -13,6 +13,13 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    // The verification scripts assert with `cond ? pass(...) : fail(...)`, which
+    // is an expression statement on purpose. Left on, every PR carries ~95
+    // inline annotations from this one rule and the real signal disappears.
+    files: ["scripts/**"],
+    rules: { "@typescript-eslint/no-unused-expressions": "off" },
+  },
 ]);
 
 export default eslintConfig;

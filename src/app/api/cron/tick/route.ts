@@ -6,6 +6,15 @@ import { sendNurtureEmail, type NurtureContact, type Template } from "@/lib/send
 
 export const maxDuration = 300;
 
+// Only the columns the tick actually reads. Spelled out because the list is
+// hoisted out of the phase that loads it, and inference no longer reaches it.
+type NurtureTemplateRow = Template & {
+  agency_id: string | null;
+  stage: string;
+  step_no: number;
+  wait_days: number;
+};
+
 // The heartbeat. Runs daily (Vercel cron). Everything it does is driven by
 // dates in the database, so it survives deploys and can be re-run safely:
 //  1. wake-ups     — waiting-room contacts whose wake_up_on arrived → human task
@@ -27,53 +36,97 @@ export async function GET(request: Request) {
     coldFlags: 0,
     outcomeConfirms: 0,
   };
+  const errors: { phase: string; message: string }[] = [];
+
+  // Write down that we started (F-011). Best-effort on purpose: the heartbeat
+  // exists to observe the work and must never be able to prevent it.
+  //
+  // 0013 is applied by hand, so this ships before the table exists. Verified
+  // against the live project: supabase-js returns the missing-table condition
+  // as `error` rather than throwing, so runId falls to null and every write
+  // below is skipped. The try/catch is only for a transport-level throw.
+  let runId: string | null = null;
+  try {
+    const { data } = await admin
+      .from("cron_run")
+      .insert({ job: "tick" })
+      .select("id")
+      .single();
+    runId = data?.id ?? null;
+  } catch {
+    // network/transport failure — the tick is more important than its log
+  }
+
+  // One phase failing used to abort the whole tick: an exception in nurture
+  // meant cold flags and the monthly outcome prompt never ran, and the only
+  // trace was a 500 in a log nobody reads. Now each phase is contained and the
+  // failure is recorded on the run.
+  const phase = async (name: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (e) {
+      errors.push({
+        phase: name,
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
 
   // ---- 1. wake-ups ----
   // The date the recruiter chose is kept forever — it's the promise we made.
   // wake_up_fired_at is what stops the task from firing twice.
-  const waking = await fetchAll(
-    (from, to) =>
-      admin
+  await phase("wake-ups", async () => {
+    const waking = await fetchAll(
+      (from, to) =>
+        admin
+          .from("contact")
+          .select("id, agency_id, first_name, last_name, phone, email, wake_up_on")
+          .eq("stage", "not_yet")
+          .is("opted_out_at", null)
+          .is("wake_up_fired_at", null)
+          .lte("wake_up_on", today)
+          .order("id")
+          .range(from, to),
+      "wake-ups"
+    );
+    for (const c of waking) {
+      const name =
+        [c.first_name, c.last_name].filter(Boolean).join(" ") ||
+        c.phone ||
+        c.email;
+      await admin.from("task").insert({
+        agency_id: c.agency_id,
+        contact_id: c.id,
+        kind: "wake_up",
+        dedupe_key: `wake_up:${c.id}:${c.wake_up_on}`,
+        title: `Wake-up: ${name} said "not yet" — the date they picked is here.`,
+      });
+      await admin
         .from("contact")
-        .select("id, agency_id, first_name, last_name, phone, email, wake_up_on")
-        .eq("stage", "not_yet")
-        .is("opted_out_at", null)
-        .is("wake_up_fired_at", null)
-        .lte("wake_up_on", today)
-        .order("id")
-        .range(from, to),
-    "wake-ups"
-  );
-  for (const c of waking) {
-    const name =
-      [c.first_name, c.last_name].filter(Boolean).join(" ") ||
-      c.phone ||
-      c.email;
-    await admin.from("task").insert({
-      agency_id: c.agency_id,
-      contact_id: c.id,
-      kind: "wake_up",
-      dedupe_key: `wake_up:${c.id}:${c.wake_up_on}`,
-      title: `Wake-up: ${name} said "not yet" — the date they picked is here.`,
-    });
-    await admin
-      .from("contact")
-      .update({ wake_up_fired_at: new Date().toISOString() })
-      .eq("id", c.id);
-    stats.wakeUps++;
-  }
+        .update({ wake_up_fired_at: new Date().toISOString() })
+        .eq("id", c.id);
+      stats.wakeUps++;
+    }
+  });
 
   // ---- load templates once (global defaults; agency overrides win) ----
-  const templates = await fetchAll(
-    (from, to) =>
-      admin
-        .from("nurture_template")
-        .select("*")
-        .eq("active", true)
-        .order("id")
-        .range(from, to),
-    "templates"
-  );
+  // Hoisted because phases 2 and 3 both read it. If this throws they find an
+  // empty list and send nothing, which is the right failure: no templates is
+  // indistinguishable from nothing being due, and both are silent by design —
+  // the recorded error is what tells them apart.
+  let templates: NurtureTemplateRow[] = [];
+  await phase("templates", async () => {
+    templates = await fetchAll<NurtureTemplateRow>(
+      (from, to) =>
+        admin
+          .from("nurture_template")
+          .select("*")
+          .eq("active", true)
+          .order("id")
+          .range(from, to),
+      "templates"
+    );
+  });
   const templatesFor = (agencyId: string, stage: string) => {
     const all = (templates ?? []).filter((t) => t.stage === stage);
     const own = all.filter((t) => t.agency_id === agencyId);
@@ -84,6 +137,7 @@ export async function GET(request: Request) {
   };
 
   // ---- 2. stage-keyed nurture (curious, considering) ----
+  await phase("nurture", async () => {
   const nurturable = await fetchAll(
     (from, to) =>
       admin
@@ -131,8 +185,10 @@ export async function GET(request: Request) {
       if (result === "failed") break;
     }
   }
+  });
 
   // ---- 3. quarterly cadence for the waiting room ----
+  await phase("cadence", async () => {
   const held = await fetchAll(
     (from, to) =>
       admin
@@ -165,8 +221,10 @@ export async function GET(request: Request) {
     );
     if (result === "sent") stats.cadenceSent++;
   }
+  });
 
   // ---- 4. cold flags: considering, silent for 30 days ----
+  await phase("cold flags", async () => {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
   const considering = await fetchAll(
@@ -209,11 +267,13 @@ export async function GET(request: Request) {
     });
     stats.coldFlags++;
   }
+  });
 
   // ---- 5. monthly outcome confirmation ----
   // Porchlight can't see the licensing system, so a human confirms licensed
   // homes (ADR-005). That's one click a month — but only if something asks.
   // The whole attribution ledger rests on this habit.
+  await phase("outcome confirm", async () => {
   const month = today.slice(0, 7);
   const staleCutoff = new Date();
   staleCutoff.setDate(staleCutoff.getDate() - 60);
@@ -248,6 +308,30 @@ export async function GET(request: Request) {
     });
     if (!error) stats.outcomeConfirms++;
   }
+  });
 
-  return NextResponse.json({ ok: true, ...stats });
+  // Close the run out. `ok` is false when any phase threw, so a partial tick
+  // is never filed as a clean one — that distinction is the whole reason the
+  // table exists.
+  const ok = errors.length === 0;
+  if (runId) {
+    try {
+      await admin
+        .from("cron_run")
+        .update({
+          finished_at: new Date().toISOString(),
+          ok,
+          stats,
+          errors: errors.length ? errors : null,
+        })
+        .eq("id", runId);
+    } catch {
+      // recording must never be able to fail the run it is recording
+    }
+  }
+
+  // Still 200 on a partial run: Vercel retries nothing and a non-2xx would
+  // only make the tick look absent rather than degraded. The errors are in
+  // the body and on the row.
+  return NextResponse.json({ ok, ...stats, errors });
 }

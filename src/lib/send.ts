@@ -1,6 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/admin";
+import { fromHeaderFor } from "@/lib/email-identity";
 
 export type NurtureContact = {
   id: string;
@@ -18,24 +19,30 @@ export type Template = {
   body: string;
 };
 
-// Cached for the life of the process: an agency does not stop being a demo.
-const demoCache = new Map<string, boolean>();
+type AgencyIdentity = { isDemo: boolean; name: string | null };
 
-async function isDemoAgency(
+// Cached for the life of the process: an agency does not stop being a demo,
+// and a rename reaching the sender line one deploy late is harmless.
+const agencyCache = new Map<string, AgencyIdentity>();
+
+async function agencyIdentity(
   admin: ReturnType<typeof createAdminClient>,
   agencyId: string
-): Promise<boolean> {
-  const cached = demoCache.get(agencyId);
+): Promise<AgencyIdentity> {
+  const cached = agencyCache.get(agencyId);
   if (cached !== undefined) return cached;
   const { data } = await admin
     .from("agency")
-    .select("is_demo")
+    .select("is_demo, name")
     .eq("id", agencyId)
     .maybeSingle();
   // fail closed: if we can't tell, don't send
-  const isDemo = data?.is_demo ?? true;
-  demoCache.set(agencyId, isDemo);
-  return isDemo;
+  const identity: AgencyIdentity = {
+    isDemo: data?.is_demo ?? true,
+    name: data?.name ?? null,
+  };
+  agencyCache.set(agencyId, identity);
+  return identity;
 }
 
 // The consent gate lives HERE, not in the callers. Every automated email in
@@ -68,7 +75,8 @@ export async function sendNurtureEmail(
   // agency, so without this a seeded demo would blast 200 @porchlight.demo
   // addresses the moment a Resend key exists — and the bounces would wreck
   // the sending domain's reputation before the first real nurture email.
-  if (await isDemoAgency(admin, contact.agency_id)) {
+  const agency = await agencyIdentity(admin, contact.agency_id);
+  if (agency.isDemo) {
     return "skipped";
   }
 
@@ -102,8 +110,15 @@ export async function sendNurtureEmail(
   try {
     const resend = new Resend(process.env.RESEND_API_KEY!);
     const { error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM!,
+      from: fromHeaderFor(agency.name, process.env.EMAIL_FROM!),
       to: contact.email,
+      // Four of the nurture templates explicitly invite a reply, and the
+      // sending subdomain accepts no inbound mail — so without this a family
+      // who answers is writing into a void. Optional and global for now; a
+      // per-agency address needs storage, so it belongs in a migration.
+      ...(process.env.EMAIL_REPLY_TO
+        ? { replyTo: process.env.EMAIL_REPLY_TO }
+        : {}),
       subject: template.subject,
       text: body,
       headers: {

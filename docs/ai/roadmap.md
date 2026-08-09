@@ -68,7 +68,7 @@ tracked (F-009).
 
 ## Next — M7, Pima-ready, then the pilot
 
-- **Migration 0013** — county and postal code on a contact (contacts currently
+- **Migration 0014** — county and postal code on a contact (contacts currently
   carry no location at all, so the ledger cannot answer "how many homes in
   Pima?"); a `contact_profile` table for capacity, sibling groups, age ranges and
   placement types; and the `caregiver_kind` discriminator, shipped early so kin
@@ -77,7 +77,7 @@ tracked (F-009).
   today, so "120 beds in Pima" is decorative and no progress is ever computed.
 - **Homes lead, beds alongside.** Beds are summed from recorded capacity, never
   homes × a statewide average, and the screen says how many are unrecorded.
-- **Video chat with The Greenhouse before 0013 is finalised** — their touch
+- **Video chat with The Greenhouse before 0014 is finalised** — their touch
   channels and their placement-type vocabulary go straight into the migration.
   Also resolve the congregate discrepancy (808 vs 1,500) before either number
   goes near a board pack.

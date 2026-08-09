@@ -23,12 +23,22 @@ highest share of children placed outside their own county; their stated need is
 | Privacy policy / DPA / retention / SAR | Open — blocked on the legal entity |
 | Throwaway Supabase project | Open — still the highest-leverage item |
 | Secrets **and the repo** out of Dropbox (F-010) | Open |
-| Cron heartbeat + error reporting (F-011) | Open — needs a migration |
+| Cron heartbeat + error reporting (F-011) | **Written**, on branch — migration 0013 not yet pasted |
 | Prove the live site with a human | Open — three items below |
 
-**Nothing above is merged.** It sits on `m6-pilot-safe`, nine commits, CI green,
-open as PR #1. Migrations **0001–0012** applied; **0013 is not yet written** and
-should not be until the video chat (below).
+**PR #1 is merged** (2026-08-09). A second branch, `m6-pilot-safe-2`, carries
+the manual pause, the per-agency sender name, the cron heartbeat and the lint
+override.
+
+Migrations **0001–0012** applied. **0013 is the cron heartbeat** (`cron_run`)
+and is waiting to be pasted. It took the number the plan had reserved for M7,
+because the heartbeat was ready and M7's schema is still gated on the video
+chat; M7 is now 0014, M9 0015, M11 0016–0017.
+
+**The code that writes it is safe to merge before it is applied** — verified
+against the live project: supabase-js returns the missing table as an `error`
+rather than throwing, so the tick records nothing and carries on. `/api/cron/status`
+answers 503 with `"cron_run unavailable"` until the paste happens.
 
 Live at https://porchlightfostercare.org — `docs/deploy-setup.md` is the runbook.
 
@@ -39,11 +49,14 @@ not covered here. Note F-001 and F-003 carry corrections that downgraded them.
 
 ## Next
 
-1. **Merge PR #1.** Nine commits, CI green. Consider whether the docs commit
-   (`az-priorities.md`) should land before or after The Greenhouse has seen it —
-   it commits us in writing to "before October" on geography, capacity and
-   placement types.
-2. **The video chat with The Greenhouse.** This gates migration 0013 and
+1. **Paste migration 0013** (`supabase/migrations/0013_cron_run.sql`) into the
+   Supabase SQL editor, then `node scripts/anon-audit.mjs .env.local` — it adds
+   a table with RLS and no policy, which is exactly the shape the audit checks.
+   Afterwards, point an uptime monitor at `/api/cron/status` with the
+   `CRON_SECRET` as a bearer token: it answers 200 while the tick is healthy and
+   503 the moment it is stale, unfinished or partial. Until something watches
+   that URL the heartbeat records a dead cron without telling anyone.
+2. **The video chat with The Greenhouse.** This gates migration 0014 and
    therefore all of M7: their touch-channel vocabulary and their placement-type
    terms belong *in* that migration rather than being guessed and rewritten.
    Also on the agenda: the unlabeled "B. About 2600" from their email, and the
@@ -68,9 +81,7 @@ not covered here. Note F-001 and F-003 carry corrections that downgraded them.
    - [ ] Scan a printed QR from a phone on mobile data; contact lands on `/board`
    - [ ] Tap the hamburger on a real phone. Verified at ~700px in a desktop
          window, never on a device.
-7. **Cron heartbeat** (F-011) — needs a `cron_run` table, so it queues behind a
-   hand-applied migration.
-8. **Playwright e2e** (event → QR capture → board → stage change) and the
+7. **Playwright e2e** (event → QR capture → board → stage change) and the
    throttled-3G check on `/c/[slug]`.
 
 ## Email — the send path, and what it still cannot do
@@ -83,14 +94,17 @@ re-checks it in two seconds and is safe to point at production config.
   rejected. The key is **sending-only**, scoped to that domain; the app calls
   exactly one Resend endpoint (`POST /emails`), so full access is never needed.
 - The `send.contact` MX record is **SES bounce handling**, not inbound mail.
-- **Nothing can receive replies yet.** No MX for a human-readable address, and
-  `send.ts` sets no `reply_to`, so a reply goes to an address that does not
-  accept mail — while four nurture templates explicitly invite one.
-- **`EMAIL_FROM` is a single global variable.** A family who met The Greenhouse
-  receives mail from "Porchlight", a name they have never heard. The cheap fix
-  needs no migration: the agency name is already in the database and can be the
-  sender display name. A per-agency reply-to address does need storage, so it
-  belongs in 0013.
+- **Replies now go wherever `EMAIL_REPLY_TO` points, and nowhere if it is
+  unset.** `send.ts` sets `replyTo` when the variable exists; it is not set in
+  any environment yet, so today a reply still reaches a mailbox that accepts
+  none while four nurture templates invite one. **Set it to a real mailbox** —
+  that is a five-minute job with no code in it. A per-agency address needs
+  storage and belongs in 0014.
+- **The sender display name is now the agency's own**, read from `agency.name`
+  and cached per process; only the address comes from `EMAIL_FROM`, because
+  that is what the sending domain verifies. `fromHeaderFor` in
+  `src/lib/email-identity.ts` quotes names containing RFC 5322 specials, so
+  "Greenhouse, Inc." does not produce a malformed header.
 
 ## Arizona data upkeep
 
@@ -145,21 +159,11 @@ function or a policy.** It has caught two real holes that nothing else would.
 
 ## Tech Debt
 
-- [ ] **The inbound webhook is the only thing that can pause automation.** There
-      is no manual pause anywhere in the UI — `automation_paused_at` is written
-      by the webhook and cleared by "resume", nothing else. So a family who
-      replies while inbound is unwired keeps receiving scheduled email, and a
-      recruiter's only lever is an irreversible opt-out. A manual pause button
-      is small, needs no migration, and removes a single point of failure.
 - [ ] **F-007 is reduced, not closed.** Matching is now exact and refuses
       ambiguity, so the wildcard-injection route is gone. The real fix carries
       the tenant in the reply address so a reply resolves by token rather than
       by matching a string across every agency — that needs `send.ts` plus token
       storage, i.e. a migration.
-- [ ] **CI publishes 93 lint warnings as PR annotations**, all from the
-      `scripts/*.mjs` assertion idiom (F-018). Every future PR will carry ~93
-      inline comments, which is exactly how a signal becomes wallpaper. Cheapest
-      fix is an eslint override for `scripts/**`.
 - [ ] **Dropbox is syncing `.git` and `.next`, not just secrets.** Files created
       mid-session appeared as already committed under an unchanged HEAD, and
       Turbopack's cache DB corrupted with missing `.sst` files. F-010 scoped this
@@ -184,7 +188,25 @@ function or a policy.** It has caught two real holes that nothing else would.
 - [ ] eslint 9 → 10 migration clears 9 dev-only advisories; ordinary
       maintenance, not security (audit F-001)
 
-### Closed 2026-08-09 (on `m6-pilot-safe`, PR #1)
+### Closed 2026-08-09 (on `m6-pilot-safe-2`)
+
+- ~~The inbound webhook was the only thing that could pause automation~~ — a
+  recruiter can pause and resume by hand from the contact page. The banner only
+  claims "they wrote to you" when an inbound touch sits at or after the pause;
+  nothing stores the reason, so it is inferred from the timeline rather than
+  asserted.
+- ~~Every nurture email went out as "Porchlight"~~ — sends now carry the
+  agency's own name. Address untouched, since it is what the sending domain
+  verifies.
+- ~~A dead cron tick looked exactly like a quiet week~~ (F-011) — `cron_run`
+  (0013) records one row per attempt, each of the five phases is contained so
+  one failure no longer aborts the rest, and `/api/cron/status` answers 503 the
+  moment a run is stale, unfinished or partial. **Nothing watches that URL
+  yet** — until a monitor does, the heartbeat is a record rather than an alarm.
+- ~~CI published 93 lint warnings as PR annotations~~ (F-018) — all 95 were one
+  rule in `scripts/**`, where `cond ? pass() : fail()` is the idiom.
+
+### Closed 2026-08-09 (on `m6-pilot-safe`, PR #1 — merged)
 
 - ~~No Resend account; no email had ever been sent~~ — sending-only key, domain
   verified, DMARC added, a real message delivered with SPF/DKIM/DMARC all PASS

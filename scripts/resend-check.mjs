@@ -43,6 +43,33 @@ if (from && !from.includes("example.com")) {
   fail("EMAIL_FROM set", from ? `still the placeholder: ${from}` : "empty");
 }
 
+// Only the address is load-bearing — send.ts replaces the display name with
+// the sending agency's own, so what a family sees is never this string.
+skip("EMAIL_FROM display name is a fallback", "each send goes out as the agency");
+
+// Not a failure when empty: replies were impossible before this existed, so
+// unset is the old behaviour rather than a regression. It is still a hole,
+// because four nurture templates ask the family to write back.
+//
+// A placeholder IS a failure, and a worse state than empty: the reply hard
+// bounces off a domain nobody owns, while the config reads as done. The
+// docs example address is the one people actually paste, so name it.
+const replyTo = env.EMAIL_REPLY_TO;
+const replyPlaceholder =
+  replyTo &&
+  /example\.(com|org|test)|somewhere-that-receives-mail|your-?email|changeme/i.test(
+    replyTo
+  );
+if (!replyTo) {
+  skip("EMAIL_REPLY_TO set", "empty — a reply goes to a mailbox that accepts none");
+} else if (replyPlaceholder) {
+  fail("EMAIL_REPLY_TO set", `still a placeholder: ${replyTo} — replies will bounce`);
+} else if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(replyTo.replace(/^.*<|>.*$/g, ""))) {
+  fail("EMAIL_REPLY_TO set", `not an address: ${replyTo}`);
+} else {
+  pass("EMAIL_REPLY_TO set", replyTo);
+}
+
 // "Porchlight <hello@porchlightfostercare.org>" -> porchlightfostercare.org
 const addr = from?.match(/<([^>]+)>/)?.[1] ?? from ?? "";
 const fromDomain = addr.split("@")[1]?.toLowerCase();

@@ -153,6 +153,25 @@ export async function logManualTouch(formData: FormData) {
   revalidatePath(`/contacts/${id}`);
 }
 
+// Stop scheduled email for one family, by hand.
+//
+// Until this existed the inbound webhook was the only writer of
+// automation_paused_at, so a recruiter who learned offline that now is a bad
+// moment — a death in the family, a placement that fell through, a reply that
+// came to a personal address the webhook never sees — had only opt-out, which
+// is irreversible by design. Pausing is reversible; that is the whole point.
+export async function pauseAutomation(formData: FormData) {
+  await requireUser();
+  const supabase = await createClient();
+  const id = String(formData.get("contact_id"));
+  const { error } = await supabase
+    .from("contact")
+    .update({ automation_paused_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+  revalidatePath(`/contacts/${id}`);
+}
+
 // Automation pauses itself when someone replies; this un-pauses it once a
 // human has actually followed up.
 export async function resumeAutomation(formData: FormData) {
