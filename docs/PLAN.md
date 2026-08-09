@@ -162,7 +162,8 @@ real agency's data that verification also writes to.
 ## Milestone 7 — Pima-ready
 **Ship: their actual goal, expressible and measured.**
 
-Migration 0013, and the narrowest schema change that does it.
+Migration 0014, and the narrowest schema change that does it. (0013 went to
+M6's cron heartbeat, which could not wait on the video chat.)
 
 - County and postal code on a contact. Contacts carry no location at all today,
   so the ledger cannot answer "how many homes in Pima?" Deliberately not added to
@@ -199,7 +200,7 @@ through `/tasks`. Design the feedback collection beforehand — they offered it.
 defect list worth more than any feature.
 
 ## Milestone 9 — The kinship conversion funnel
-Migration 0014. A kinship journey catalog against the Gold Standard 60–90 day
+Migration 0015. A kinship journey catalog against the Gold Standard 60–90 day
 timeline; kinship messaging, because the current templates persuade someone who
 has never considered fostering and would be wrong sent to a grandmother whose
 grandchildren are already asleep upstairs; stage labels that vary by kind; board
@@ -213,7 +214,7 @@ Sensitive columns on `contact_profile`: language, race and ethnicity
 Gated on M6. Unblocks Spanish capture, overdue since M4.
 
 ## Milestone 11 — The economics ledger
-Migrations 0015–0016. Write `first_placement_on` at last; incentives on
+Migrations 0016–0017. Write `first_placement_on` at last; incentives on
 `outcome`; published DCS rates in `az_stat` with citations, kept apart from the
 agency-editable defaults used in arithmetic (ADR-009); `ledger_rows()` v2 with
 revenue and a split by caregiver kind. Columns added to existing per-source rows
