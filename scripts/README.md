@@ -1,13 +1,15 @@
 # Verification scripts
 
 Run against whatever project `.env.local` points at. **Never point these at a
-production agency's data** — they create and erase records.
+production agency's data** — they create and erase records. The one exception
+is `resend-check.mjs`, which reads configuration and touches no database.
 
 ```bash
 node scripts/smoke-test.mjs .env.local   # schema invariants + RLS isolation + erasure
 node scripts/cron-test.mjs  .env.local   # /api/cron/tick behavior (dev server must be running)
 node scripts/anon-audit.mjs .env.local   # what a stranger with the public anon key can reach
 node scripts/demo-test.mjs  .env.local   # demo tenancy guards
+node scripts/resend-check.mjs .env.local # is the send path configured? (read-only)
 node scripts/purge-test-agencies.mjs     # remove agencies left by test runs
 node scripts/az-stats-import.mjs         # Arizona figures: dry-run the diff
 node scripts/az-stats-import.mjs --apply # ...and write it
