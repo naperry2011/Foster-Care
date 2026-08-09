@@ -10,6 +10,7 @@ import { buildTimeline, relativeDays, TOUCH_CHANNEL_LABELS } from "@/lib/timelin
 import {
   logManualTouch,
   updateContactNotes,
+  pauseAutomation,
   resumeAutomation,
   completeTask,
 } from "../actions";
@@ -91,6 +92,19 @@ export default async function ContactPage({
     "Unnamed contact";
   const openTasks = (tasks ?? []).filter((t) => !t.done_at);
 
+  // Why the pause happened. The webhook pauses and logs an inbound touch in the
+  // same breath, so an inbound touch at or after the pause means they wrote;
+  // anything else means a human pressed the button. Nothing stores the reason,
+  // and rather than guess in the copy we only claim a reply when one is there.
+  const pausedByReply =
+    !!contact.automation_paused_at &&
+    (touches ?? []).some(
+      (t) =>
+        t.direction === "in" &&
+        new Date(t.occurred_at).getTime() >=
+          new Date(contact.automation_paused_at as string).getTime() - 60_000
+    );
+
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <Link href="/contacts" className="text-sm text-sage hover:underline">
@@ -155,11 +169,13 @@ export default async function ContactPage({
         )}
       </div>
 
-      {contact.automation_paused_at && (
+      {contact.automation_paused_at ? (
         <div className="mt-4 rounded-xl border-l-4 border-sage bg-sage-tint p-4 flex items-center justify-between gap-4 flex-wrap">
           <p className="text-sm text-[#2F5347]">
-            <strong>Automation is paused.</strong> They wrote to you, so the
-            machine stepped back and left this to a human.
+            <strong>Automation is paused.</strong>{" "}
+            {pausedByReply
+              ? "They wrote to you, so the machine stepped back and left this to a human."
+              : "Somebody here paused it. No scheduled email will go out until it resumes."}
           </p>
           <form action={resumeAutomation}>
             <input type="hidden" name="contact_id" value={contact.id} />
@@ -168,6 +184,18 @@ export default async function ContactPage({
             </button>
           </form>
         </div>
+      ) : (
+        // Opting out is permanent; pausing is the reversible thing to reach for
+        // when now is simply the wrong moment. Kept quiet so it reads as the
+        // gentler option next to the danger zone, not as a second opt-out.
+        !contact.opted_out_at && (
+          <form action={pauseAutomation} className="mt-4">
+            <input type="hidden" name="contact_id" value={contact.id} />
+            <button className="text-sm text-muted underline underline-offset-4 hover:text-ink">
+              Pause nurture for now
+            </button>
+          </form>
+        )
       )}
 
       {openTasks.length > 0 && (
