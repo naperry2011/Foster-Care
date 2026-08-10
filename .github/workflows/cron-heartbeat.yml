@@ -1,0 +1,65 @@
+name: Cron heartbeat
+
+# Audit F-011. cron_run records whether the daily tick ran; /api/cron/status
+# reports on it. This is the thing that actually asks. Without it the heartbeat
+# is a diary nobody opens — a dead cron would be recorded accurately and still
+# noticed by nobody until a family in October was waiting on an email that was
+# never sent.
+#
+# Deliberately not a third-party uptime service: no new account, and
+# CRON_SECRET stays in GitHub Secrets next to the other CI secrets rather than
+# on someone else's servers. The trade-off is that GitHub's schedule drifts by
+# a few minutes and a GitHub outage takes the monitor down with it. Both are
+# fine for a daily check; if this ever needs to page someone at 3am, move it to
+# a real uptime service.
+
+on:
+  schedule:
+    # The tick runs at 15:00 UTC (vercel.json). This checks at 18:00 UTC, three
+    # hours later, so a slow run is never mistaken for a missing one. The
+    # endpoint itself tolerates 36 hours before calling a run stale, so the
+    # exact minute here does not matter.
+    - cron: "0 18 * * *"
+  # So you can prove it works without waiting a day.
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask whether the cron is alive
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set in this repository's secrets."
+            echo "Settings -> Secrets and variables -> Actions -> New repository secret."
+            exit 1
+          fi
+
+          # -sS keeps curl quiet but still prints transport errors; the body and
+          # the status code are captured separately so both can be reported.
+          body=$(curl -sS -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://porchlightfostercare.org/api/cron/status)
+          code=$(printf '%s' "$body" | tail -n1)
+          json=$(printf '%s' "$body" | sed '$d')
+
+          echo "HTTP $code"
+          echo "$json"
+
+          if [ "$code" = "200" ]; then
+            echo "Cron is healthy."
+            exit 0
+          fi
+
+          # Everything below is a failure, but say which kind — a 401 is a
+          # broken monitor and a 503 is a broken cron, and confusing the two
+          # wastes the alert.
+          echo "---"
+          case "$code" in
+            401) echo "The secret was refused. This is the monitor being wrong, not the cron." ;;
+            503) echo "The cron is stale, unfinished, or a phase failed. Check the JSON above." ;;
+            *)   echo "Unexpected response. The site itself may be down." ;;
+          esac
+          exit 1
