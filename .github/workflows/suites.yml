@@ -1,0 +1,129 @@
+name: Suites
+
+# The five verification suites, against a throwaway Supabase project.
+#
+# They have always existed and have only ever run when somebody remembered, on
+# a laptop, against the database production uses. That is two problems: real
+# agency data is one typo away from a test that writes, and the suites that
+# guard tenancy and consent are the ones most likely to be skipped when a change
+# looks small.
+#
+# This runs them on every PR instead — but only once TEST_SUPABASE_* secrets
+# exist. Until then the job reports what is missing and passes, because a
+# permanently red check teaches everyone to ignore red checks.
+#
+# See docs/test-project-setup.md for standing the project up.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: suites-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suites:
+    runs-on: ubuntu-latest
+    env:
+      TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+      TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Is a test project configured?
+        id: gate
+        run: |
+          if [ -n "$TEST_SUPABASE_URL" ] && [ -n "$TEST_SUPABASE_ANON_KEY" ] && [ -n "$TEST_SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "No throwaway Supabase project configured — suites skipped."
+            echo "Set TEST_SUPABASE_URL, TEST_SUPABASE_ANON_KEY and"
+            echo "TEST_SUPABASE_SERVICE_ROLE_KEY in repository secrets."
+            echo "See docs/test-project-setup.md."
+          fi
+
+      - if: steps.gate.outputs.configured == 'true'
+        run: npm ci
+
+      # Written to a file because the suites take an env path as their argument.
+      # No Resend key and no EMAIL_FROM on purpose: sendNurtureEmail() returns
+      # "skipped" without a provider and claims no dedupe key, so CI cannot send
+      # mail to anyone even if a suite seeds a consenting contact.
+      - name: Write CI env
+        if: steps.gate.outputs.configured == 'true'
+        run: |
+          cat > .env.ci <<EOF
+          NEXT_PUBLIC_SUPABASE_URL=$TEST_SUPABASE_URL
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=$TEST_SUPABASE_ANON_KEY
+          SUPABASE_SERVICE_ROLE_KEY=$TEST_SUPABASE_SERVICE_ROLE_KEY
+          NEXT_PUBLIC_APP_URL=http://localhost:3000
+          CRON_SECRET=ci-only-not-a-real-secret
+          EOF
+
+      # Order matters: anon-audit first, because a policy hole is the finding
+      # that should stop a merge fastest, and it is the cheapest to run.
+      - name: anon-audit
+        if: steps.gate.outputs.configured == 'true'
+        run: node scripts/anon-audit.mjs .env.ci
+
+      - name: smoke-test
+        if: steps.gate.outputs.configured == 'true'
+        run: node scripts/smoke-test.mjs .env.ci
+
+      - name: demo-test
+        if: steps.gate.outputs.configured == 'true'
+        run: node scripts/demo-test.mjs .env.ci
+
+      - name: ledger-parity
+        if: steps.gate.outputs.configured == 'true'
+        run: node scripts/ledger-parity.mjs .env.ci
+
+      # cron-test is the only one that needs the app: it POSTs to the real
+      # /api/cron/tick rather than reimplementing the tick's logic, which is
+      # the whole reason it catches things the others miss.
+      #
+      # The env has to be passed to build AND start: NEXT_PUBLIC_* are inlined
+      # at build time (see ci.yml), and the service-role key and CRON_SECRET are
+      # read at runtime by the tick. CRON_SECRET must match the value written
+      # into .env.ci above or cron-test's request is refused by its own guard.
+      #
+      # Still no RESEND_API_KEY, so the tick cannot send mail here.
+      - name: Build and start the app
+        if: steps.gate.outputs.configured == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          CRON_SECRET: ci-only-not-a-real-secret
+        run: |
+          npm run build
+          npm start &
+          # Poll rather than sleep a fixed number of seconds, so a slow start is
+          # a slow pass instead of a flaky failure.
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null http://localhost:3000/login; then
+              echo "app up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "app did not start within 30s"
+          exit 1
+
+      - name: cron-test
+        if: steps.gate.outputs.configured == 'true'
+        run: node scripts/cron-test.mjs .env.ci
+
+      - name: Remove CI env
+        if: always()
+        run: rm -f .env.ci

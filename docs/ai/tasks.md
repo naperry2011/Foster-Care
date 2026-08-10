@@ -63,9 +63,14 @@ not covered here. Note F-001 and F-003 carry corrections that downgraded them.
    congregate discrepancy (we cite 808, they were given ~1,500 — likely
    congregate care vs all non-family settings). Neither number goes near a board
    pack until that is settled.
-3. **A throwaway Supabase project.** Every verification still writes to the
-   database production uses, the suites only run when somebody remembers, and
-   migrations are hand-pasted. This unblocks suites-in-CI at the same time.
+3. **A throwaway Supabase project — everything around it is built; only the
+   project itself is missing.** `docs/test-project-setup.md` is the runbook,
+   `scripts/bundle-migrations.mjs` produces the whole schema as one transaction,
+   and `.github/workflows/suites.yml` runs all five suites and skips itself
+   until three `TEST_SUPABASE_*` repository secrets exist. Creating the project
+   and pasting those secrets is roughly twenty minutes and closes the oldest
+   piece of debt in the repo: every verification still writes to the database
+   production uses.
 4. **Legal entity decision.** Gates the privacy policy, the Resend DPA, any
    contract with The Greenhouse, and Twilio A2P. Likely the real critical path
    now that Resend is cleared.
@@ -178,7 +183,8 @@ function or a policy.** It has caught two real holes that nothing else would.
       (deliberate: prefers a missed email to a double-send)
 - [ ] Board has no drag-and-drop; per-card `<select>` is the mechanism
 - [ ] Board caps at 2,000 cards. Visible on the page, but a real fix is windowing
-- [ ] Suites aren't in CI — needs a throwaway Supabase project
+- [ ] Suites aren't in CI — **the workflow is written and waiting**; it needs
+      the three `TEST_SUPABASE_*` secrets (`docs/test-project-setup.md`)
 - [ ] Invitations aren't emailed; the recruiter copies the link and sends it
 - [ ] `delete_demo_data()` doesn't clear `agency_county`, `agency_target` or
       `agency_invite` — `seedDemoAgency` clears them itself, so a rebuild is
